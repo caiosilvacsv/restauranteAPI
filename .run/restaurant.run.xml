@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="restaurant" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="api" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.restaurant.api.ApiApplication" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

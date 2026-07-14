@@ -1,0 +1,32 @@
+@baseUrl = https://localhost:8080
+
+### Register Order for table
+POST {{baseUrl}}/orders
+Content-Type: application/json
+
+{
+  "id": 1,
+  "note" : "Client is bad."
+}
+
+### Find all orders
+GET {{baseUrl}}/orders?page=0&size=10&sort=openedAt,desc
+
+### Find order by id
+GET {{baseUrl}}/orders/1
+
+### Add items in order
+POST {{baseUrl}}/orders/1/items
+Content-Type: application/json
+
+{
+  "productId": 5,
+  "quantity": 2,
+  "note": "Cebola bem dourada, por favor",
+  "addIngredients": [1, 3],
+  "removeIngredients": [2]
+}
+
+### List items in order
+GET {{baseUrl}}/orders/1/items
+
