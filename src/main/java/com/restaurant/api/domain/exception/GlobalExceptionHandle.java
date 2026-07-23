@@ -10,6 +10,7 @@ import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandle {
+
   @ExceptionHandler(BusinessRulesException.class)
   public ResponseEntity<ErrorResponse> handleBusinessRulesException(BusinessRulesException e) {
     ErrorResponse response = new ErrorResponse(
@@ -31,6 +32,28 @@ public class GlobalExceptionHandle {
         List.of(e.getMessage())
     );
     return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+  }
+
+  @ExceptionHandler(InvalidStateException.class)
+  public ResponseEntity<ErrorResponse> handleInvalidStateException(InvalidStateException e) {
+    ErrorResponse response = new ErrorResponse(
+        Instant.now(),
+        HttpStatus.UNPROCESSABLE_CONTENT.value(),
+        e.getTitle(),
+        List.of(e.getMessage())
+    );
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(response);
+  }
+
+  @ExceptionHandler(InvalidStateException.class)
+  public ResponseEntity<ErrorResponse>  handleConflictException(ConflictException e) {
+    ErrorResponse response = new ErrorResponse(
+        Instant.now(),
+        HttpStatus.CONFLICT.value(),
+        e.getTitle(),
+        List.of(e.getMessage())
+    );
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
   }
 
   @ExceptionHandler(Exception.class)

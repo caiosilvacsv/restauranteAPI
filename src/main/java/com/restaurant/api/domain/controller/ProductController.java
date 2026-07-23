@@ -43,4 +43,8 @@ public class ProductController {
     service.delete(id);
   }
 
+  @GetMapping("/delete")
+  public Page<ProductResponse> disableProducts(Pageable pageable) {
+    return service.findProductDelete(pageable);
+  }
 }

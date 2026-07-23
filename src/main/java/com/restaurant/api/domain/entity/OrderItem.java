@@ -6,8 +6,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -24,6 +25,15 @@ public class OrderItem {
   @Column(name = "unit_price",nullable = false)
   private BigDecimal unitPrice;
 
+  @Column(name = "preparation_started_at")
+  private Instant preparationStartedAt;
+
+  @Column(name = "ready_at")
+  private Instant readyAt;
+
+  @Column(name = "delivered_at")
+  private Instant deliveredAt;
+
   private String notes;
 
   @Enumerated(EnumType.STRING)
@@ -39,6 +49,21 @@ public class OrderItem {
   private Product productID;
 
   @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
-  private List<OrderItemModification> modifications = new ArrayList<>();
+  private Set<OrderItemModification> modifications = new HashSet<>();
 
+  public void next(){
+    this.getStatus().next();
+  }
+
+  public void initPrepared(){
+    this.setPreparationStartedAt(Instant.now());
+  }
+
+  public void isReady(){
+    this.setReadyAt(Instant.now());
+  }
+
+  public void delivered(){
+    this.setDeliveredAt(Instant.now());
+  }
 }

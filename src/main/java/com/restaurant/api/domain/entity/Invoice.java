@@ -7,6 +7,14 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ *
+ * In our system, the Invoice represents the bill closure.
+ * When a customer requests to close their table's tab,
+ * the system calculates all subtotals and fees,
+ * creates an Invoice record, and prepares the order for payment.
+ *
+**/
 @Getter
 @Setter
 @Entity
@@ -31,9 +39,9 @@ public class Invoice {
   @Column(name = "closed_at", nullable = false)
   private Instant closedAt;
 
-  @ManyToOne(fetch = FetchType.LAZY)
+  @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "order_id")
-  private Order orderID;
+  private Order order;
 
   @PrePersist
   public void prePersist() {

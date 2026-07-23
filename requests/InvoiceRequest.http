@@ -1,0 +1,13 @@
+@baseUrl = https://localhost:8080
+
+### close order
+POST {{baseUrl}}/order/1/invoice
+Content-Type: application/json
+
+{
+  "serviceFee" : 12.00,
+  "discount" : 2.00
+}
+
+### Find order invoice
+GET {{baseUrl}}/order/1/invoice

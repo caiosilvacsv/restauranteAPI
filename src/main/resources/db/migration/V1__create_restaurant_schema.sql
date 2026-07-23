@@ -58,6 +58,9 @@ CREATE TABLE order_items (
     product_id BIGINT NOT NULL,
     quantity INTEGER NOT NULL CHECK ( quantity > 0 ),
     unit_price NUMERIC(19, 2) NOT NULL CHECK ( unit_price > 0 ),
+    preparation_started_at TIMESTAMPTZ,
+    ready_at TIMESTAMPTZ,
+    delivered_at TIMESTAMPTZ,
     notes TEXT,
     status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
     CHECK( status IN ('PENDING', 'PREPARING', 'READY', 'DESPATCHED', 'DELIVERED', 'CLOSED', 'CANCELLED') ),
@@ -142,6 +145,7 @@ CREATE TABLE order_item_modifications(
     order_item_id BIGINT NOT NULL,
     ingredient_id BIGINT NOT NULL,
     type VARCHAR(20) NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK ( quantity > 0 ),
     extra_price NUMERIC(19,2) NOT NULL DEFAULT 00.0 CHECK ( extra_price >= 0 ),
 
     CONSTRAINT fk_order_item_id
@@ -157,4 +161,4 @@ CREATE TABLE order_item_modifications(
                     CHECK ( type IN ('ADD', 'REMOVE') )
 );
 
-CREATE INDEX idx_order_modification_item ON order_item_modification(order_item_id);
+CREATE INDEX idx_order_modification_item ON order_item_modifications(order_item_id);

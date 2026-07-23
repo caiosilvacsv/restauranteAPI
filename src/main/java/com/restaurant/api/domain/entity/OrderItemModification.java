@@ -24,8 +24,11 @@ public class OrderItemModification {
   @JoinColumn(name = "ingredient_id", nullable = false)
   private Ingredient ingredient;
 
-  @Enumerated(EnumType.STRING)
   @Column(nullable = false)
+  private Integer quantity;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "type", nullable = false)
   private ModificationType modificationType;
 
   @Column(name = "extra_price", nullable = false)

@@ -14,6 +14,7 @@ public class RestaurantTables {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
+  ///table identification number
   @Column(nullable = false)
   private Integer number;
 
@@ -25,6 +26,14 @@ public class RestaurantTables {
   @Enumerated(EnumType.STRING)
   @Column(nullable = false)
   private StatusTable status = StatusTable.AVAILABLE;
+
+  public void reserverTable(){
+    this.status = StatusTable.RESERVED;
+  }
+
+  public void occupyTable(){
+    this.status = StatusTable.OCCUPIED;
+  }
 
 }
 

@@ -6,49 +6,54 @@ import com.restaurant.api.domain.dto.OrderRequest;
 import com.restaurant.api.domain.dto.OrderResponse;
 import com.restaurant.api.domain.entity.*;
 import com.restaurant.api.domain.enums.ModificationType;
-import com.restaurant.api.domain.enums.StatusOrder;
-import com.restaurant.api.domain.enums.StatusOrderItem;
-import com.restaurant.api.domain.enums.StatusTable;
 import com.restaurant.api.domain.exception.BusinessRulesException;
 import com.restaurant.api.domain.exception.NotFoundException;
 import com.restaurant.api.domain.repository.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 
 @Service
 public class OrderService {
-  @Autowired
-  private OrderRepository orderRepository;
-  @Autowired
-  private RestaurantTableRepository tableRepository;
-  @Autowired
-  private ProductRepository productRepository;
-  @Autowired
-  private OrderItemRepository orderItemRepository;
-  @Autowired
-  private IngredientRepository ingredientRepository;
+
+  private final OrderRepository orderRepository;
+
+  private final RestaurantTableRepository tableRepository;
+
+  private final ProductRepository productRepository;
+
+  private final OrderItemRepository orderItemRepository;
+
+  private final IngredientRepository ingredientRepository;
+
+  public OrderService(
+      OrderRepository orderRepository,
+      RestaurantTableRepository tableRepository,
+      ProductRepository productRepository,
+      OrderItemRepository orderItemRepository,
+      IngredientRepository ingredientRepository
+  ) {
+    this.orderRepository = orderRepository;
+    this.tableRepository = tableRepository;
+    this.productRepository = productRepository;
+    this.orderItemRepository = orderItemRepository;
+    this.ingredientRepository = ingredientRepository;
+  }
 
   public OrderResponse createOrder(OrderRequest request) {
     RestaurantTables table = tableRepository.findById(request.id())
         .orElseThrow(()-> new NotFoundException(
             "Table not Found","Could not find table with ID: " + request.id()));
 
-    if(!table.getStatus().equals(StatusTable.AVAILABLE))
+    if(!table.getStatus().isAvailable())
       throw new BusinessRulesException("Table is not available");
 
-    Order order = new Order();
-    order.setTablesID(table);
-    order.setStatus(StatusOrder.OPENED);
-    order.setNotes(request.note());
-    order.setOpenedAt(Instant.now());
+    Order order = new Order(table, request.note());
 
-    table.setStatus(StatusTable.OCCUPIED);
+    table.occupyTable();
 
     Order saveOrder = orderRepository.save(order);
     tableRepository.save(table);
@@ -72,7 +77,7 @@ public class OrderService {
 
     Order order = findOrderById(id);
 
-    if (StatusOrder.OPENED.equals(order.getStatus()))
+    if (order.getStatus().isOpen())
       throw new BusinessRulesException("Order is not opened");
 
 
@@ -125,7 +130,6 @@ public class OrderService {
     }
 
     items.setUnitPrice(finalUnitPrice);
-    items.setStatus(StatusOrderItem.PENDING);
     OrderItem savedItem = orderItemRepository.save(items);
 
     return OrderItemResponse.fromEntity(savedItem);

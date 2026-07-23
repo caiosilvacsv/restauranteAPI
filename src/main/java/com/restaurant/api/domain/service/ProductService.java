@@ -8,7 +8,6 @@ import com.restaurant.api.domain.entity.Ingredient;
 import com.restaurant.api.domain.repository.CategoryProductRepository;
 import com.restaurant.api.domain.repository.ProductRepository;
 import com.restaurant.api.domain.repository.IngredientRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,12 +16,20 @@ import java.util.List;
 
 @Service
 public class ProductService {
-  @Autowired
-  private ProductRepository productRepository;
-  @Autowired
-  private CategoryProductRepository categoryProductRepository;
-  @Autowired
-  private IngredientRepository ingredientRepository;
+
+  private final ProductRepository productRepository;
+  private final CategoryProductRepository categoryProductRepository;
+  private final IngredientRepository ingredientRepository;
+
+  public ProductService(
+      ProductRepository productRepository,
+      CategoryProductRepository categoryProductRepository,
+      IngredientRepository ingredientRepository
+  ) {
+    this.productRepository = productRepository;
+    this.categoryProductRepository = categoryProductRepository;
+    this.ingredientRepository = ingredientRepository;
+  }
 
   public ProductResponse register(ProductRequest request) {
     CategoryProduct categoryProduct = findCategoryById(request.categoryId());
@@ -75,12 +82,12 @@ public class ProductService {
     return productRepository.findByActiveFalse(pageable).map(ProductResponse::fromEntity);
   }
 
-  public Product findProductById(Long id) {
+  private Product findProductById(Long id) {
     return productRepository.findById(id).orElseThrow(
         () -> new RuntimeException("Product not found"));
   }
 
-  public CategoryProduct findCategoryById(Long id) {
+  private CategoryProduct findCategoryById(Long id) {
     return categoryProductRepository.findById(id).orElseThrow(
         () -> new RuntimeException("Category not found"));
   }

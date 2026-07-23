@@ -1,6 +1,7 @@
 package com.restaurant.api.domain.entity;
 
 import com.restaurant.api.domain.enums.StatusOrder;
+import com.restaurant.api.domain.exception.InvalidStateException;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -37,4 +38,24 @@ public class Order {
     openedAt = Instant.now();
   }
 
+  public void close(){
+    this.setClosedAt(Instant.now());
+    if(this.status.canTransitionTo(StatusOrder.CLOSED))
+      this.setStatus(StatusOrder.CLOSED);
+    else
+      throw new InvalidStateException(
+          "Order closed",
+          "This order has already been closed or invalid status");
+  }
+
+  public void advanceStatus(){
+    this.status = this.status.next();
+  }
+
+  public Order(){}
+
+  public Order(RestaurantTables table, String notes){
+    this.setTablesID(table);
+    this.setNotes(notes);
+  }
 }
