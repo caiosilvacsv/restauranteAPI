@@ -1,0 +1,17 @@
+@baseUrl = https://localhost:8080
+
+## Register Product
+POST {{baseUrl}}/products
+Content-Type: application/json
+
+{
+  "categoryID" : 1,
+  "name" : "Parmegiana de Frango",
+  "description" : "Chicken with salt and cheese",
+  "price" : 33.30,
+  "active" : true,
+  "preparationTime" : 30,
+  "ingredientsId" : [1,2,3]
+}
+
+

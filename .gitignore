@@ -31,3 +31,13 @@ build/
 
 ### VS Code ###
 .vscode/
+
+.run
+
+.properties
+
+### Environment & Secrets ###
+.env
+.env.*
+!.env.example
+!.env.exemple

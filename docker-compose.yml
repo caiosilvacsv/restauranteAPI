@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # 1. Banco de Dados PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: restaurante_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-restaurante_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-restaurante_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Aplicação Spring Boot API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: restaurante_api
+    restart: always
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATASOURCE_URL: ${DATASOURCE_URL:-jdbc:postgresql://postgres:5432/restaurante_db}
+      DATASOURCE_USERNAME: ${DATASOURCE_USERNAME:-postgres}
+      DATASOURCE_PASSWORD: ${DATASOURCE_PASSWORD:-password}
+      DB_MAX_POOL_SIZE: ${DB_MAX_POOL_SIZE:-20}
+      DB_MIN_IDLE: ${DB_MIN_IDLE:-5}
+      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_restaurant_api_2026_dev_only}
+      JWT_ISSUER: ${JWT_ISSUER:-restaurant-api}
+      SECURITY_ORIGINS: ${SECURITY_ORIGINS:-http://localhost:3000}
+      FRONT_DEFAULT_URL: ${FRONT_DEFAULT_URL:-http://localhost:3000}
+
+volumes:
+  postgres_data:

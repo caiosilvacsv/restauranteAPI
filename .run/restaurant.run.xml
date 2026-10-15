@@ -1,0 +1,21 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="restaurant" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <envs>
+      <env name="DATASOURCE_PASSWORD" value="password" />
+      <env name="DATASOURCE_URL" value="jdbc:postgresql://localhost:5432/restaurant" />
+      <env name="DATASOURCE_USERNAME" value="postgres" />
+      <env name="FRONT_DEFAULT_URL" value="http://localhost:3000" />
+      <env name="MERCHANT_CODE" value="MHQ0TR9Z" />
+      <env name="PAYMENT_KEY" value="sup_pk_vQ0PNBBqCtzNFpT8hOQ7REizZncAmzHPW" />
+      <env name="PAYMENT_URL" value="https://api.sumup.com/v0.1" />
+      <env name="SECURITY_ORIGINS" value="http://localhost:3000,http://localhost:8080,https://meurestaurante.com.br" />
+      <env name="JWT_SECRET" value="ThisSecretKeyHaveMuchItemsForSeeAndLising" />
+      <env name="JWT_ISSUE" value="aplicationRestaurant" />
+    </envs>
+    <module name="api" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.restaurant.api.ApiApplication" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

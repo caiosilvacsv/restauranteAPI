@@ -1,0 +1,20 @@
+@baseUrl = https://localhost:8080
+
+### List all items peding
+GET {{baseUrl}}/kitchen/item/peding
+
+### List all items preparing
+GET {{baseUrl}}/kitchen/item/preparing
+
+### Initializing preparation for item
+PATCH {{baseUrl}}/kitchen/item/1/prepared
+
+### Mark item as ready
+PATCH {{baseUrl}}/kitchen/item/1/ready
+
+### Mark item as despatched
+PATCH {{baseUrl}}/kitchen/item/1/despatched
+
+//FIXME - Move this section to the food delivery section.
+### Mark item as delivered
+PATCH {{baseUrl}}/kitchen/item/1/ready
