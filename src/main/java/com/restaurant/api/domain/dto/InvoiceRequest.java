@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public record InvoiceRequest(
     BigDecimal serviceFee,
-    BigDecimal discount
+    BigDecimal discount,
+    BigDecimal deliveryFee
 ) {
 }

@@ -40,12 +40,15 @@ public enum StatusOrder {
    */
 
   public boolean canTransitionTo(StatusOrder nextStatus){
+    if (nextStatus == CLOSED) {
+      return this != CLOSED && this != CANCELLED;
+    }
     return switch (this){
       case OPENED -> nextStatus == PREPARING || nextStatus == CANCELLED;
       case PREPARING -> nextStatus == READY || nextStatus == CANCELLED;
       case READY -> nextStatus == DESPATCHED || nextStatus == DELIVERED || nextStatus == CANCELLED;
-      case DESPATCHED -> nextStatus == DELIVERED || nextStatus == CANCELLED || nextStatus == CLOSED;
-      case DELIVERED -> nextStatus == CLOSED;
+      case DESPATCHED -> nextStatus == DELIVERED || nextStatus == CANCELLED;
+      case DELIVERED -> true;
       case CLOSED, CANCELLED -> false;
     };
   }

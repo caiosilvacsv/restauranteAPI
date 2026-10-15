@@ -29,8 +29,11 @@ public class Payment {
   @Enumerated(EnumType.STRING)
   private StatusPayment status =  StatusPayment.PENDING;
 
-  @Column(name = "external_transaction_code", nullable = false)
+  @Column(name = "external_transaction_code")
   private String externalTransactionCode;
+
+  @Column(name = "checkout_id")
+  private String checkoutId;
 
   @Column(name = "payment_date")
   private Instant paymentDate;
@@ -38,9 +41,19 @@ public class Payment {
   @Column(name = "create_at", nullable = false)
   private Instant createAt;
 
+  @Column(name = "valid_until")
+  private Instant validUntil;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "invoice_id")
+  private Invoice invoice;
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "order_id")
   private Order order;
+
+  @Column(name = "payer_name", length = 100)
+  private String payerName;
 
   @PrePersist
   public void prePersist() {

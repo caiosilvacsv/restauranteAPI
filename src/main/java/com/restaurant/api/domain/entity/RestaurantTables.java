@@ -35,5 +35,9 @@ public class RestaurantTables {
     this.status = StatusTable.OCCUPIED;
   }
 
+  public void availableTable(){
+    this.status = StatusTable.AVAILABLE;
+  }
+
 }
 

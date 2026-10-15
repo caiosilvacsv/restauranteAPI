@@ -42,17 +42,44 @@ public class OrderItem {
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "order_id",  nullable = false)
-  private Order orderID;
+  private Order order;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "product_id", nullable = false)
-  private Product productID;
+  private Product product;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "second_product_id")
+  private Product secondProduct;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "pizza_size_id")
+  private PizzaSize pizzaSize;
+
+  @Column(name = "notes_first_half")
+  private String notesFirstHalf;
+
+  @Column(name = "notes_second_half")
+  private String notesSecondHalf;
 
   @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
   private Set<OrderItemModification> modifications = new HashSet<>();
 
+  public boolean isHalfAndHalf() {
+    return this.secondProduct != null;
+  }
+
+  public BigDecimal calculateUnitPrice() {
+    if (secondProduct == null) {
+      return product.getPrice();
+    }
+    BigDecimal raw = product.getPrice().add(secondProduct.getPrice())
+        .divide(BigDecimal.valueOf(2), 4, java.math.RoundingMode.HALF_UP);
+    return raw.setScale(0, java.math.RoundingMode.CEILING).setScale(2, java.math.RoundingMode.UNNECESSARY);
+  }
+
   public void next(){
-    this.getStatus().next();
+    this.status = this.status.next();
   }
 
   public void initPrepared(){

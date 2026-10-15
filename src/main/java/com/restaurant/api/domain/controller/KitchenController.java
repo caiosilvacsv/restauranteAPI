@@ -2,13 +2,16 @@ package com.restaurant.api.domain.controller;
 
 import com.restaurant.api.domain.dto.KitchenItemResponse;
 import com.restaurant.api.domain.service.KitchenService;
-import org.springframework.http.HttpStatus;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/kitchen")
+@Tag(name = "KDS / Cozinha", description = "Endpoints para visualização de itens da cozinha e transição de etapas de produção")
 public class KitchenController {
 
   private final KitchenService service;
@@ -17,50 +20,51 @@ public class KitchenController {
     this.service = service;
   }
 
-  @GetMapping("/item/peding")
-  public List<KitchenItemResponse> ListItemsPending(){
-    return service.ListAllKitchenItemsPending();
+  @GetMapping({"/item/pending", "/item/peding"})
+  @Operation(summary = "Listar itens pendentes de preparo", description = "Suporta tanto /item/pending (correto) quanto /item/peding por retrocompatibilidade")
+  public ResponseEntity<List<KitchenItemResponse>> listItemsPending() {
+    return ResponseEntity.ok(service.listAllKitchenItemsPending());
   }
 
   @GetMapping("/item/preparing")
-  public List<KitchenItemResponse> ListItemsPreparing(){
-    return service.ListAllKitchenItemsPreparing();
+  @Operation(summary = "Listar itens em preparo")
+  public ResponseEntity<List<KitchenItemResponse>> listItemsPreparing() {
+    return ResponseEntity.ok(service.listAllKitchenItemsPreparing());
   }
 
   @GetMapping("/item/queued")
-  public List<KitchenItemResponse> ListItemsQueued(){
-    return service.ListAllKitchenItemsQueued();
+  @Operation(summary = "Listar itens na esteira/fila de produção")
+  public ResponseEntity<List<KitchenItemResponse>> listItemsQueued() {
+    return ResponseEntity.ok(service.listAllKitchenItemsQueued());
   }
 
   @PatchMapping("/item/{itemId}/queued")
-  @ResponseStatus(HttpStatus.OK)
-  public KitchenItemResponse findItemById(@PathVariable Long itemId){
-    return service.addToQueued(itemId);
+  @Operation(summary = "Enfileirar item na esteira de produção (idempotente)")
+  public ResponseEntity<KitchenItemResponse> queueItem(@PathVariable Long itemId) {
+    return ResponseEntity.ok(service.addToQueued(itemId));
   }
 
   @PatchMapping("/item/{itemId}/prepared")
-  @ResponseStatus(HttpStatus.OK)
-  public KitchenItemResponse initPreparedKitchen(@PathVariable Long itemId){
-    return service.initPreparing(itemId);
+  @Operation(summary = "Iniciar preparação do item no forno/bancada (idempotente)")
+  public ResponseEntity<KitchenItemResponse> initPreparing(@PathVariable Long itemId) {
+    return ResponseEntity.ok(service.initPreparing(itemId));
   }
 
   @PatchMapping("/item/{itemId}/ready")
-  @ResponseStatus(HttpStatus.OK)
-  public KitchenItemResponse readyKitchen(@PathVariable Long itemId){
-    return service.markReady(itemId);
+  @Operation(summary = "Marcar item como pronto para entrega/expedição (idempotente)")
+  public ResponseEntity<KitchenItemResponse> markReady(@PathVariable Long itemId) {
+    return ResponseEntity.ok(service.markReady(itemId));
   }
 
   @PatchMapping("/item/{itemId}/despatched")
-  @ResponseStatus(HttpStatus.OK)
-  public KitchenItemResponse initDespatchedKitchen(@PathVariable Long itemId){
-    return service.initDespatched(itemId);
+  @Operation(summary = "Marcar item como despachado (idempotente)")
+  public ResponseEntity<KitchenItemResponse> initDespatched(@PathVariable Long itemId) {
+    return ResponseEntity.ok(service.initDespatched(itemId));
   }
 
-  //FIXME - Move this section to the food delivery section.
   @PatchMapping("/item/{itemId}/delivered")
-  @ResponseStatus(HttpStatus.OK)
-  public KitchenItemResponse deliveredItem(@PathVariable Long itemId){
-    return service.deliveredItem(itemId);
+  @Operation(summary = "Marcar item como entregue à mesa ou ao cliente (idempotente)")
+  public ResponseEntity<KitchenItemResponse> deliveredItem(@PathVariable Long itemId) {
+    return ResponseEntity.ok(service.deliveredItem(itemId));
   }
-
 }

@@ -4,5 +4,9 @@ public enum StatusPayment {
   PENDING,
   APPROVED,
   REJECTED,
-  CANCELLED,
+  CANCELLED;
+
+  public boolean hasFailed() {
+    return this == CANCELLED || this == PENDING;
+  }
 }

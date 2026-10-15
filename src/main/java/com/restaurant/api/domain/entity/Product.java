@@ -28,6 +28,9 @@ public class Product {
   @Column(nullable = false)
   private Boolean active = true;
 
+  @Column(name = "allows_half_and_half", nullable = false)
+  private Boolean allowsHalfAndHalf = false;
+
   @Column(name = "preparation_time_minutes")
   private Integer preparationTimeInMinutes;
 
@@ -40,6 +43,9 @@ public class Product {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "category_id")
   private CategoryProduct categoryProduct;
+
+  @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+  private Set<ProductSizePrice> sizePrices = new HashSet<>();
 
   @ManyToMany
   @JoinTable(

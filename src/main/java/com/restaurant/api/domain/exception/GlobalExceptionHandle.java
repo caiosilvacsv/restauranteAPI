@@ -45,7 +45,7 @@ public class GlobalExceptionHandle {
     return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(response);
   }
 
-  @ExceptionHandler(InvalidStateException.class)
+  @ExceptionHandler(ConflictException.class)
   public ResponseEntity<ErrorResponse>  handleConflictException(ConflictException e) {
     ErrorResponse response = new ErrorResponse(
         Instant.now(),
@@ -56,13 +56,27 @@ public class GlobalExceptionHandle {
     return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
   }
 
+  @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+  public ResponseEntity<ErrorResponse> handleNoResourceFoundException(org.springframework.web.servlet.resource.NoResourceFoundException e) {
+    ErrorResponse response = new ErrorResponse(
+        Instant.now(),
+        HttpStatus.NOT_FOUND.value(),
+        "Resource Not Found",
+        List.of("The requested URL or endpoint was not found: /" + e.getResourcePath())
+    );
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ErrorResponse> handleException(Exception e) {
+    String title = e.getCause() != null ? e.getCause().toString() : "Internal Server Error";
+    String message = e.getMessage() != null ? e.getMessage() : "An unexpected error occurred";
+
     ErrorResponse response = new ErrorResponse(
       Instant.now(),
       HttpStatus.INTERNAL_SERVER_ERROR.value(),
-      e.getCause().toString(),
-      List.of(e.getMessage())
+      title,
+      List.of(message)
     );
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
   }

@@ -6,6 +6,9 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -27,6 +30,9 @@ public class Invoice {
   @Column(nullable = false)
   private BigDecimal subtotal;
 
+  @Column(name = "delivery_fee", nullable = false)
+  private BigDecimal deliveryFee = BigDecimal.valueOf(2.00);
+
   @Column(name = "service_fee", nullable = false)
   private BigDecimal serviceFee;
 
@@ -42,6 +48,9 @@ public class Invoice {
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "order_id")
   private Order order;
+
+  @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL)
+  private Set<Payment> payments = new HashSet<>();
 
   @PrePersist
   public void prePersist() {

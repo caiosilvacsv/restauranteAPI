@@ -1,5 +1,8 @@
 package com.restaurant.api.domain.exception;
 
+import lombok.Getter;
+
+@Getter
 public class BusinessRulesException extends RuntimeException {
   private final String title;
 
@@ -14,11 +17,7 @@ public class BusinessRulesException extends RuntimeException {
   }
 
   public BusinessRulesException() {
-    this.title = "Error business rules";
     super("Error business rules");
-  }
-
-  public String getTitle() {
-    return title;
+    this.title = "Error business rules";
   }
 }

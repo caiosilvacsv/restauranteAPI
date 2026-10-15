@@ -91,13 +91,21 @@ public class InvoiceService {
     if (discount.compareTo(BigDecimal.ZERO) < 0)
       throw new BusinessRulesException("Discount is negative", "The discount is invalid for this order");
 
-    BigDecimal total = subtotalAmount.add(serviceFee.subtract(discount));
+    BigDecimal deliveryFee = BigDecimal.ZERO;
+    if (request != null && request.deliveryFee() != null) {
+      deliveryFee = request.deliveryFee();
+    } else if (order.getOrderType() == com.restaurant.api.domain.enums.OrderType.DELIVERY) {
+      deliveryFee = BigDecimal.valueOf(2.00);
+    }
+
+    BigDecimal total = subtotalAmount.add(deliveryFee).add(serviceFee).subtract(discount);
     if (total.compareTo(BigDecimal.ZERO) < 0)
       throw new BusinessRulesException("Total is negative", "The total is invalid for this order");
 
     Invoice invoice = new Invoice();
-    invoice.setOrderID(order);
+    invoice.setOrder(order);
     invoice.setSubtotal(subtotalAmount);
+    invoice.setDeliveryFee(deliveryFee);
     invoice.setServiceFee(serviceFee);
     invoice.setDiscount(discount);
     invoice.setTotalAmount(total);

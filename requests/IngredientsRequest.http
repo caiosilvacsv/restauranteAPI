@@ -1,0 +1,10 @@
+@baseUrl = https://localhost:8080
+
+### create ingredient
+POST {{baseUrl}}/ingredient/create
+Content-Type: application/json
+
+{
+  "name" : "onion",
+  "price" : 2.00
+}

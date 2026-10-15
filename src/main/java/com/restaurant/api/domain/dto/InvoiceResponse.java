@@ -10,21 +10,29 @@ public record InvoiceResponse(
     Long orderId,
     Integer numberTable,
     BigDecimal subtotal,
+    BigDecimal deliveryFee,
     BigDecimal serviceFee,
     BigDecimal discount,
     BigDecimal total,
     Instant closedAt
 ) {
   public static InvoiceResponse fromEntity (Invoice invoice) {
+    Integer numberTable = (invoice.getOrder() != null && invoice.getOrder().getTable() != null)
+        ? invoice.getOrder().getTable().getNumber()
+        : null;
+
+    Long orderId = invoice.getOrder() != null ? invoice.getOrder().getId() : null;
+
     return new InvoiceResponse(
         invoice.getId(),
-        invoice.getOrderID().getId(),
-        invoice.getOrderID().getTablesID().getNumber(),
+        orderId,
+        numberTable,
         invoice.getSubtotal(),
+        invoice.getDeliveryFee() != null ? invoice.getDeliveryFee() : BigDecimal.ZERO,
         invoice.getServiceFee(),
         invoice.getDiscount(),
         invoice.getTotalAmount(),
-        Instant.now()
+        invoice.getClosedAt() != null ? invoice.getClosedAt() : Instant.now()
     );
   }
 }

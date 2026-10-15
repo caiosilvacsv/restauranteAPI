@@ -6,8 +6,8 @@ import com.restaurant.api.domain.enums.StatusOrderItem;
 import com.restaurant.api.domain.exception.BusinessRulesException;
 import com.restaurant.api.domain.exception.NotFoundException;
 import com.restaurant.api.domain.repository.OrderItemRepository;
-import org.hibernate.query.Page;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -19,84 +19,137 @@ public class KitchenService {
     this.orderItemRepository = orderItemRepository;
   }
 
-  public List<KitchenItemResponse> ListAllKitchenItemsPending() {
+  public List<KitchenItemResponse> listAllKitchenItemsPending() {
     return orderItemRepository.findByStatusOrderByIdAsc(StatusOrderItem.PENDING)
         .stream()
         .map(KitchenItemResponse::fromEntity)
         .toList();
   }
 
-  public List<KitchenItemResponse> ListAllKitchenItemsPreparing() {
+  public List<KitchenItemResponse> listAllKitchenItemsPreparing() {
     return orderItemRepository.findByStatusOrderByIdAsc(StatusOrderItem.PREPARING)
         .stream()
         .map(KitchenItemResponse::fromEntity)
         .toList();
   }
 
-  public List<KitchenItemResponse> ListAllKitchenItemsQueued(){
+  public List<KitchenItemResponse> listAllKitchenItemsQueued() {
     return orderItemRepository.findByStatusOrderByIdAsc(StatusOrderItem.QUEUED)
         .stream()
         .map(KitchenItemResponse::fromEntity)
         .toList();
   }
 
-  public KitchenItemResponse addToQueued(Long orderId) {
-    OrderItem item = findItemById(orderId);
+  // Compatibilidade com código legado
+  public List<KitchenItemResponse> ListAllKitchenItemsPending() {
+    return listAllKitchenItemsPending();
+  }
 
-    if (!item.getStatus().canTransitionTo(StatusOrderItem.QUEUED))
-      throw new BusinessRulesException("Incorrect order status", "The order must be pending for in the queued.");
+  public List<KitchenItemResponse> ListAllKitchenItemsPreparing() {
+    return listAllKitchenItemsPreparing();
+  }
 
-    item.next();
+  public List<KitchenItemResponse> ListAllKitchenItemsQueued() {
+    return listAllKitchenItemsQueued();
+  }
+
+  @Transactional
+  public KitchenItemResponse addToQueued(Long itemId) {
+    OrderItem item = findItemById(itemId);
+
+    if (item.getStatus() == StatusOrderItem.CANCELLED) {
+      throw new BusinessRulesException("Item cancelado", "Não é possível enfileirar um item cancelado.");
+    }
+
+    // Idempotência: se já está enfileirado ou em etapa posterior, retorna sem erro
+    if (item.getStatus().ordinal() >= StatusOrderItem.QUEUED.ordinal()) {
+      return KitchenItemResponse.fromEntity(item);
+    }
+
+    item.setStatus(StatusOrderItem.QUEUED);
     return KitchenItemResponse.fromEntity(orderItemRepository.save(item));
   }
 
-  public KitchenItemResponse initPreparing(Long orderId) {
-    OrderItem item = findItemById(orderId);
+  @Transactional
+  public KitchenItemResponse initPreparing(Long itemId) {
+    OrderItem item = findItemById(itemId);
 
-    if (!item.getStatus().canTransitionTo(StatusOrderItem.PREPARING))
-      throw new BusinessRulesException("Incorrect order status", "The order must be queued for in the preparing.");
+    if (item.getStatus() == StatusOrderItem.CANCELLED) {
+      throw new BusinessRulesException("Item cancelado", "Não é possível preparar um item cancelado.");
+    }
 
-    item.next();
-    item.initPrepared();
+    // Idempotência: se já está em preparo ou etapa posterior, retorna sem erro
+    if (item.getStatus().ordinal() >= StatusOrderItem.PREPARING.ordinal()) {
+      return KitchenItemResponse.fromEntity(item);
+    }
+
+    item.setStatus(StatusOrderItem.PREPARING);
+    if (item.getPreparationStartedAt() == null) {
+      item.initPrepared();
+    }
     return KitchenItemResponse.fromEntity(orderItemRepository.save(item));
   }
 
-  public KitchenItemResponse markReady(Long orderId) {
-    OrderItem item = findItemById(orderId);
+  @Transactional
+  public KitchenItemResponse markReady(Long itemId) {
+    OrderItem item = findItemById(itemId);
 
-    if (!item.getStatus().canTransitionTo(StatusOrderItem.READY))
-      throw new BusinessRulesException("Incorrect order status", "The order must be preparing for in the ready.");
+    if (item.getStatus() == StatusOrderItem.CANCELLED) {
+      throw new BusinessRulesException("Item cancelado", "Não é possível finalizar um item cancelado.");
+    }
 
-    item.next();
-    item.isReady();
+    // Idempotência: se já está pronto ou etapa posterior, retorna sem erro
+    if (item.getStatus().ordinal() >= StatusOrderItem.READY.ordinal()) {
+      return KitchenItemResponse.fromEntity(item);
+    }
+
+    item.setStatus(StatusOrderItem.READY);
+    if (item.getReadyAt() == null) {
+      item.isReady();
+    }
     return KitchenItemResponse.fromEntity(orderItemRepository.save(item));
   }
 
-  public KitchenItemResponse initDespatched(Long orderId) {
-    OrderItem item = findItemById(orderId);
+  @Transactional
+  public KitchenItemResponse initDespatched(Long itemId) {
+    OrderItem item = findItemById(itemId);
 
-    if (!item.getStatus().canTransitionTo(StatusOrderItem.DESPATCHED))
-      throw new BusinessRulesException("Incorrect order status", "The order must be ready for in the despatched.");
+    if (item.getStatus() == StatusOrderItem.CANCELLED) {
+      throw new BusinessRulesException("Item cancelado", "Não é possível despachar um item cancelado.");
+    }
 
-    item.next();
+    // Idempotência: se já foi despachado ou entregue, retorna sem erro
+    if (item.getStatus().ordinal() >= StatusOrderItem.DESPATCHED.ordinal()) {
+      return KitchenItemResponse.fromEntity(item);
+    }
+
+    item.setStatus(StatusOrderItem.DESPATCHED);
     return KitchenItemResponse.fromEntity(orderItemRepository.save(item));
   }
 
-  public KitchenItemResponse deliveredItem(Long orderId) {
-    OrderItem item = findItemById(orderId);
+  @Transactional
+  public KitchenItemResponse deliveredItem(Long itemId) {
+    OrderItem item = findItemById(itemId);
 
-    if (!item.getStatus().canTransitionTo(StatusOrderItem.DELIVERED))
-      throw new BusinessRulesException("Incorrect order status", "The order must be despatched for in the delivered item.");
+    if (item.getStatus() == StatusOrderItem.CANCELLED) {
+      throw new BusinessRulesException("Item cancelado", "Não é possível entregar um item cancelado.");
+    }
 
-    item.next();
-    item.delivered();
+    // Idempotência: se já foi entregue ou fechado, retorna sem erro
+    if (item.getStatus().ordinal() >= StatusOrderItem.DELIVERED.ordinal()) {
+      return KitchenItemResponse.fromEntity(item);
+    }
+
+    item.setStatus(StatusOrderItem.DELIVERED);
+    if (item.getDeliveredAt() == null) {
+      item.delivered();
+    }
     return KitchenItemResponse.fromEntity(orderItemRepository.save(item));
   }
 
-  private OrderItem findItemById(Long orderId) {
-    return orderItemRepository.findById(orderId)
+  private OrderItem findItemById(Long itemId) {
+    return orderItemRepository.findById(itemId)
         .orElseThrow(() -> new NotFoundException(
-            "Order item not found.", "Order item not found with ID: " + orderId));
+            "Order item not found.", "Order item not found with ID: " + itemId));
   }
-
 }
