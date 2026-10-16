@@ -15,6 +15,7 @@ public record RestaurantConfigRequest(
     Boolean isManuallyClosed,
     String closedMessage,
     Integer estimatedTimeMinutes,
-    String estimatedTimeText
+    String estimatedTimeText,
+    java.util.List<String> openDays
 ) {
 }
