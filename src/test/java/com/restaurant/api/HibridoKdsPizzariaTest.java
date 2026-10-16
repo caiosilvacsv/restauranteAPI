@@ -207,4 +207,132 @@ class HibridoKdsPizzariaTest {
     item.next();
     assertEquals(com.restaurant.api.domain.enums.StatusOrderItem.PREPARING, item.getStatus());
   }
+
+  @Test
+  @DisplayName("Deve inicializar admin padrão via AdminInitializer se usuário não existir")
+  void testAdminInitializerBootstrapsAdmin() {
+    com.restaurant.api.domain.repository.UserRepository mockUserRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserRepository.class);
+    org.springframework.security.crypto.password.PasswordEncoder mockEncoder = org.mockito.Mockito.mock(org.springframework.security.crypto.password.PasswordEncoder.class);
+
+    org.mockito.Mockito.when(mockUserRepo.existsByLogin("admin")).thenReturn(false);
+    org.mockito.Mockito.when(mockEncoder.encode("secret123")).thenReturn("$2a$10$encodedHash");
+
+    com.restaurant.api.domain.infra.security.AdminInitializer initializer =
+        new com.restaurant.api.domain.infra.security.AdminInitializer(mockUserRepo, mockEncoder);
+
+    // Injeta campos via reflection
+    org.springframework.test.util.ReflectionTestUtils.setField(initializer, "adminLogin", "admin");
+    org.springframework.test.util.ReflectionTestUtils.setField(initializer, "adminPassword", "secret123");
+    org.springframework.test.util.ReflectionTestUtils.setField(initializer, "adminName", "Super Admin");
+    org.springframework.test.util.ReflectionTestUtils.setField(initializer, "adminPhone", "5511999999999");
+
+    initializer.run();
+
+    org.mockito.ArgumentCaptor<com.restaurant.api.domain.entity.User> captor =
+        org.mockito.ArgumentCaptor.forClass(com.restaurant.api.domain.entity.User.class);
+    org.mockito.Mockito.verify(mockUserRepo, org.mockito.Mockito.times(1)).save(captor.capture());
+
+    com.restaurant.api.domain.entity.User saved = captor.getValue();
+    assertEquals("admin", saved.getLogin());
+    assertEquals("$2a$10$encodedHash", saved.getPassword());
+    assertEquals(com.restaurant.api.domain.enums.Role.ADMIN, saved.getRole());
+    assertTrue(saved.getActive());
+  }
+
+  @Test
+  @DisplayName("Deve permitir ADMIN cadastrar novos garçons e administradores via UserService")
+  void testCreateStaffSuccess() {
+    com.restaurant.api.domain.repository.UserRepository mockUserRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserRepository.class);
+    org.springframework.security.crypto.password.PasswordEncoder mockEncoder = org.mockito.Mockito.mock(org.springframework.security.crypto.password.PasswordEncoder.class);
+
+    com.restaurant.api.domain.service.UserService userService =
+        new com.restaurant.api.domain.service.UserService(mockUserRepo, mockEncoder);
+
+    org.mockito.Mockito.when(mockUserRepo.existsByLogin("garcom_joao")).thenReturn(false);
+    org.mockito.Mockito.when(mockEncoder.encode("senhaGarcom123")).thenReturn("$2a$10$hashedGarcom");
+
+    org.mockito.Mockito.when(mockUserRepo.save(org.mockito.ArgumentMatchers.any(com.restaurant.api.domain.entity.User.class)))
+        .thenAnswer(invocation -> {
+          com.restaurant.api.domain.entity.User u = invocation.getArgument(0);
+          u.setId(10L);
+          return u;
+        });
+
+    com.restaurant.api.domain.dto.StaffRegisterRequest request =
+        new com.restaurant.api.domain.dto.StaffRegisterRequest(
+            "garcom_joao",
+            "senhaGarcom123",
+            "João Garçom",
+            "5538988887777",
+            com.restaurant.api.domain.enums.Role.WAITER
+        );
+
+    com.restaurant.api.domain.dto.UserResponse response = userService.createStaff(request);
+
+    assertNotNull(response);
+    assertEquals("garcom_joao", response.login());
+    assertEquals("WAITER", response.role());
+    assertEquals("João Garçom", response.name());
+    assertTrue(response.active());
+  }
+
+  @Test
+  @DisplayName("Deve rejeitar cadastro de equipe com cargos inválidos como CUSTOMER ou USER")
+  void testCreateStaffRejectsInvalidRole() {
+    com.restaurant.api.domain.repository.UserRepository mockUserRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserRepository.class);
+    org.springframework.security.crypto.password.PasswordEncoder mockEncoder = org.mockito.Mockito.mock(org.springframework.security.crypto.password.PasswordEncoder.class);
+
+    com.restaurant.api.domain.service.UserService userService =
+        new com.restaurant.api.domain.service.UserService(mockUserRepo, mockEncoder);
+
+    com.restaurant.api.domain.dto.StaffRegisterRequest request =
+        new com.restaurant.api.domain.dto.StaffRegisterRequest(
+            "cliente1",
+            "senha123",
+            "Cliente Teste",
+            "5538988887777",
+            com.restaurant.api.domain.enums.Role.CUSTOMER
+        );
+
+    assertThrows(com.restaurant.api.domain.exception.BusinessRulesException.class, () -> {
+      userService.createStaff(request);
+    });
+  }
+
+  @Test
+  @DisplayName("Deve validar dias de funcionamento em RestaurantConfig")
+  void testOpenDaysLogic() {
+    RestaurantConfig config = new RestaurantConfig();
+    config.setOpenDaysList(java.util.List.of("FRIDAY", "SATURDAY", "SUNDAY"));
+
+    assertTrue(config.isOpenOn(java.time.DayOfWeek.FRIDAY));
+    assertTrue(config.isOpenOn(java.time.DayOfWeek.SATURDAY));
+    assertTrue(config.isOpenOn(java.time.DayOfWeek.SUNDAY));
+    assertFalse(config.isOpenOn(java.time.DayOfWeek.MONDAY));
+    assertFalse(config.isOpenOn(java.time.DayOfWeek.TUESDAY));
+  }
+
+  @Test
+  @DisplayName("Deve formatar o tempo estimado como faixa de tempo (tempo exato a +10min)")
+  void testEstimatedTimeCalculation() {
+    RestaurantConfig config = new RestaurantConfig();
+    config.updateEstimate(45);
+
+    assertEquals(Integer.valueOf(45), config.getEstimatedTimeMinutes());
+    assertEquals("45 - 55 minutos", config.getEstimatedTimeText());
+
+    // Teste com RestaurantConfigService
+    com.restaurant.api.domain.repository.RestaurantConfigRepository mockRepo =
+        org.mockito.Mockito.mock(com.restaurant.api.domain.repository.RestaurantConfigRepository.class);
+    com.restaurant.api.domain.service.RestaurantConfigService service =
+        new com.restaurant.api.domain.service.RestaurantConfigService(mockRepo);
+
+    org.mockito.Mockito.when(mockRepo.findAll()).thenReturn(java.util.List.of(config));
+    org.mockito.Mockito.when(mockRepo.save(org.mockito.ArgumentMatchers.any(RestaurantConfig.class)))
+        .thenAnswer(i -> i.getArgument(0));
+
+    com.restaurant.api.domain.dto.RestaurantConfigResponse response = service.updateEstimatedTime(50);
+    assertEquals(Integer.valueOf(50), response.estimatedTimeMinutes());
+    assertEquals("50 - 60 minutos", response.estimatedTimeText());
+  }
 }

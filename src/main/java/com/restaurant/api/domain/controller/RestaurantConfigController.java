@@ -25,4 +25,11 @@ public class RestaurantConfigController {
   public ResponseEntity<RestaurantConfigResponse> updateConfig(@RequestBody RestaurantConfigRequest request) {
     return ResponseEntity.ok(service.updateConfig(request));
   }
+
+  @PatchMapping("/estimate")
+  public ResponseEntity<RestaurantConfigResponse> updateEstimate(
+      @RequestBody @jakarta.validation.Valid com.restaurant.api.domain.dto.OrderEstimateRequest request
+  ) {
+    return ResponseEntity.ok(service.updateEstimatedTime(request.estimatedMinutes()));
+  }
 }

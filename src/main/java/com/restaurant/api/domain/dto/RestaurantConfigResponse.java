@@ -19,7 +19,8 @@ public record RestaurantConfigResponse(
     String closedMessage,
     boolean isOpen,
     Integer estimatedTimeMinutes,
-    String estimatedTimeText
+    String estimatedTimeText,
+    java.util.List<String> openDays
 ) {
   public static RestaurantConfigResponse fromEntity(RestaurantConfig config) {
     if (config == null) return null;
@@ -37,7 +38,8 @@ public record RestaurantConfigResponse(
         config.getClosedMessage(),
         config.isCurrentlyOpen(),
         config.getEstimatedTimeMinutes(),
-        config.getEstimatedTimeText()
+        config.getEstimatedTimeText(),
+        config.getOpenDaysList()
     );
   }
 }

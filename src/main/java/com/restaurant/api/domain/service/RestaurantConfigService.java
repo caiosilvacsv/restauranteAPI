@@ -76,11 +76,27 @@ public class RestaurantConfigService {
     }
     if (request.estimatedTimeMinutes() != null) {
       config.setEstimatedTimeMinutes(request.estimatedTimeMinutes());
-    }
-    if (request.estimatedTimeText() != null) {
+      if (request.estimatedTimeText() != null && !request.estimatedTimeText().isBlank()) {
+        config.setEstimatedTimeText(request.estimatedTimeText());
+      } else {
+        config.setEstimatedTimeText(request.estimatedTimeMinutes() + " - " + (request.estimatedTimeMinutes() + 10) + " minutos");
+      }
+    } else if (request.estimatedTimeText() != null) {
       config.setEstimatedTimeText(request.estimatedTimeText());
     }
+    if (request.openDays() != null) {
+      config.setOpenDaysList(request.openDays());
+    }
 
+    RestaurantConfig saved = repository.save(config);
+    return RestaurantConfigResponse.fromEntity(saved);
+  }
+
+  @Transactional
+  public RestaurantConfigResponse updateEstimatedTime(Integer minutes) {
+    RestaurantConfig config = getConfigEntity();
+    config.setEstimatedTimeMinutes(minutes);
+    config.setEstimatedTimeText(minutes + " - " + (minutes + 10) + " minutos");
     RestaurantConfig saved = repository.save(config);
     return RestaurantConfigResponse.fromEntity(saved);
   }

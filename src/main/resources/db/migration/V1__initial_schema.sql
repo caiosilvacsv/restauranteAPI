@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS restaurant_config (
     address VARCHAR(200),
     open_time TIME DEFAULT '18:00:00',
     close_time TIME DEFAULT '23:30:00',
+    open_days VARCHAR(120) DEFAULT 'TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY',
     is_manually_closed BOOLEAN NOT NULL DEFAULT FALSE,
     closed_message TEXT DEFAULT 'Estamos fechados no momento. Não estamos recebendo pedidos!',
     estimated_time_minutes INTEGER DEFAULT 40,

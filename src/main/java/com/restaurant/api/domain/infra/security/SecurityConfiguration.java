@@ -28,7 +28,7 @@ public class SecurityConfiguration {
 
   private final SecurityFilter securityFilter;
 
-  @Value("${app.security.allowed-origins:http://localhost:3000,http://localhost:5173,http://localhost:8080}")
+  @Value("${app.security.allowed-origins:${SECURITY_ORIGINS:http://localhost:3000,http://localhost:4200,http://localhost:5173,http://localhost:8080}}")
   private String allowedOrigins;
 
   public SecurityConfiguration(SecurityFilter securityFilter) {
@@ -56,6 +56,7 @@ public class SecurityConfiguration {
             .requestMatchers(HttpMethod.DELETE, "/sizes/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.GET, "/config/**").permitAll()
             .requestMatchers(HttpMethod.PUT, "/config/**").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.PATCH, "/config/**").hasAnyRole("ADMIN", "WAITER")
             .requestMatchers(HttpMethod.POST,"/payment/**").permitAll()
             .requestMatchers(HttpMethod.POST, "/products/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.PUT, "/products/**").hasRole("ADMIN")
@@ -64,6 +65,8 @@ public class SecurityConfiguration {
             .requestMatchers(HttpMethod.POST, "/ingredient/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.PUT, "/ingredient/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.DELETE, "/ingredient/**").hasRole("ADMIN")
+            // Gestão de Equipe e Usuários
+            .requestMatchers("/users/**").hasRole("ADMIN")
             // Mesas
             .requestMatchers(HttpMethod.GET, "/tables/**").hasAnyRole("ADMIN", "WAITER")
             .requestMatchers(HttpMethod.POST, "/tables/**").hasRole("ADMIN")

@@ -45,6 +45,9 @@ public class RestaurantConfig {
   @Column(name = "close_time")
   private LocalTime closeTime = LocalTime.of(23, 30);
 
+  @Column(name = "open_days", length = 120)
+  private String openDays = "TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY";
+
   @Column(name = "is_manually_closed", nullable = false)
   private boolean isManuallyClosed = false;
 
@@ -55,7 +58,38 @@ public class RestaurantConfig {
   private Integer estimatedTimeMinutes = 40;
 
   @Column(name = "estimated_time_text", length = 50)
-  private String estimatedTimeText = "40-50 min";
+  private String estimatedTimeText = "40 - 50 minutos";
+
+  public void updateEstimate(Integer minutes) {
+    this.estimatedTimeMinutes = minutes;
+    if (minutes != null) {
+      this.estimatedTimeText = minutes + " - " + (minutes + 10) + " minutos";
+    }
+  }
+
+  public java.util.List<String> getOpenDaysList() {
+    if (this.openDays == null || this.openDays.isBlank()) {
+      return java.util.List.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY");
+    }
+    return java.util.Arrays.stream(this.openDays.split(","))
+        .map(String::trim)
+        .map(String::toUpperCase)
+        .filter(s -> !s.isEmpty())
+        .toList();
+  }
+
+  public void setOpenDaysList(java.util.List<String> days) {
+    if (days == null || days.isEmpty()) {
+      this.openDays = "TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY";
+    } else {
+      this.openDays = String.join(",", days.stream().map(String::trim).map(String::toUpperCase).toList());
+    }
+  }
+
+  public boolean isOpenOn(java.time.DayOfWeek day) {
+    if (day == null) return false;
+    return getOpenDaysList().contains(day.name());
+  }
 
   public boolean isCurrentlyOpen() {
     if (this.isManuallyClosed) {
@@ -64,12 +98,26 @@ public class RestaurantConfig {
     if (this.openTime == null || this.closeTime == null) {
       return true;
     }
-    LocalTime now = LocalTime.now(ZoneId.of("America/Sao_Paulo"));
+    ZoneId zone = ZoneId.of("America/Sao_Paulo");
+    LocalTime nowTime = LocalTime.now(zone);
+    java.time.LocalDate today = java.time.LocalDate.now(zone);
+
+    // Se o expediente cruza meia-noite (ex: 18:00 às 02:00) e agora são 01:00,
+    // o dia de expediente de referência é o de ontem.
+    java.time.DayOfWeek businessDay = today.getDayOfWeek();
+    if (closeTime.isBefore(openTime) && nowTime.isBefore(closeTime)) {
+      businessDay = today.minusDays(1).getDayOfWeek();
+    }
+
+    if (!isOpenOn(businessDay)) {
+      return false;
+    }
+
     if (closeTime.isAfter(openTime)) {
-      return !now.isBefore(openTime) && !now.isAfter(closeTime);
+      return !nowTime.isBefore(openTime) && !nowTime.isAfter(closeTime);
     } else {
       // Cruza meia-noite (ex: 18:00 às 01:00)
-      return !now.isBefore(openTime) || !now.isAfter(closeTime);
+      return !nowTime.isBefore(openTime) || !nowTime.isAfter(closeTime);
     }
   }
 }

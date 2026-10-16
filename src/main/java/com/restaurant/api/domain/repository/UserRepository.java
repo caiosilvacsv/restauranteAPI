@@ -6,4 +6,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 public interface UserRepository extends JpaRepository<User, Long> {
   User findByLogin(String login);
+  boolean existsByLogin(String login);
+  java.util.List<User> findByRoleIn(java.util.List<com.restaurant.api.domain.enums.Role> roles);
 }
