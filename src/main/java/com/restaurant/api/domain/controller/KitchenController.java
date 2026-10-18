@@ -20,7 +20,7 @@ public class KitchenController {
     this.service = service;
   }
 
-  @GetMapping({"/item/pending", "/item/peding"})
+  @GetMapping("/item/pending")
   @Operation(summary = "Listar itens pendentes de preparo", description = "Suporta tanto /item/pending (correto) quanto /item/peding por retrocompatibilidade")
   public ResponseEntity<List<KitchenItemResponse>> listItemsPending() {
     return ResponseEntity.ok(service.listAllKitchenItemsPending());

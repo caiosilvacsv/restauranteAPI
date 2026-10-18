@@ -43,6 +43,7 @@ public class OrderService {
   private final com.restaurant.api.domain.repository.ProductSizePriceRepository productSizePriceRepository;
   private final com.restaurant.api.domain.repository.UserAddressRepository userAddressRepository;
   private final PaymentRepository paymentRepository;
+  private final DailyOrderSequenceService dailyOrderSequenceService;
 
   public OrderService(
       OrderRepository orderRepository,
@@ -54,7 +55,8 @@ public class OrderService {
       com.restaurant.api.domain.repository.PizzaSizeRepository pizzaSizeRepository,
       com.restaurant.api.domain.repository.ProductSizePriceRepository productSizePriceRepository,
       com.restaurant.api.domain.repository.UserAddressRepository userAddressRepository,
-      PaymentRepository paymentRepository
+      PaymentRepository paymentRepository,
+      DailyOrderSequenceService dailyOrderSequenceService
   ) {
     this.orderRepository = orderRepository;
     this.tableRepository = tableRepository;
@@ -66,6 +68,7 @@ public class OrderService {
     this.productSizePriceRepository = productSizePriceRepository;
     this.userAddressRepository = userAddressRepository;
     this.paymentRepository = paymentRepository;
+    this.dailyOrderSequenceService = dailyOrderSequenceService;
   }
 
   @Transactional
@@ -129,12 +132,28 @@ public class OrderService {
       }
     }
 
-    Order savedOrder = orderRepository.save(order);
+    // 4. Define o código diário do pedido (#0001) para o expediente atual
+    LocalDate businessDate = dailyOrderSequenceService.getBusinessDate(config);
+    String orderCode;
 
-    // 4. Gera código sequencial formatado no padrão #XXXX (ex: #1042)
-    String orderCode = String.format("#%04d", savedOrder.getId());
-    savedOrder.setOrderCode(orderCode);
-    savedOrder = orderRepository.save(savedOrder);
+    if (request.orderCode() != null && !request.orderCode().isBlank()) {
+      // Pedido enviado pelo Hub com numeração própria (offline / local)
+      String trimmed = request.orderCode().trim();
+      Integer parsed = dailyOrderSequenceService.parseSequenceNumber(trimmed);
+      if (parsed != null) {
+        orderCode = dailyOrderSequenceService.formatOrderCode(parsed);
+        dailyOrderSequenceService.syncSequence(businessDate, parsed);
+      } else {
+        orderCode = trimmed.startsWith("#") ? trimmed : "#" + trimmed;
+      }
+    } else {
+      // Pedido criado na nuvem / cardápio online: gera o próximo sequencial diário atômico
+      int nextSeq = dailyOrderSequenceService.nextSequence(businessDate);
+      orderCode = dailyOrderSequenceService.formatOrderCode(nextSeq);
+    }
+
+    order.setOrderCode(orderCode);
+    Order savedOrder = orderRepository.save(order);
 
     // 5. Adiciona itens caso tenham sido enviados diretamente no request
     List<OrderItemResponse> itemResponses = new ArrayList<>();
@@ -446,14 +465,22 @@ public class OrderService {
       BigDecimal priceFirst;
       BigDecimal priceSecond;
 
+      BigDecimal defaultFirstPrice = (pizzaSize != null && pizzaSize.getPrice() != null && pizzaSize.getPrice().compareTo(BigDecimal.ZERO) > 0)
+          ? pizzaSize.getPrice()
+          : product.getPrice();
+
+      BigDecimal defaultSecondPrice = (pizzaSize != null && pizzaSize.getPrice() != null && pizzaSize.getPrice().compareTo(BigDecimal.ZERO) > 0)
+          ? pizzaSize.getPrice()
+          : secondProduct.getPrice();
+
       if (pizzaSize != null) {
         priceFirst = productSizePriceRepository.findByProductIdAndPizzaSizeId(product.getId(), pizzaSize.getId())
             .map(com.restaurant.api.domain.entity.ProductSizePrice::getPrice)
-            .orElse(product.getPrice());
+            .orElse(defaultFirstPrice);
 
         priceSecond = productSizePriceRepository.findByProductIdAndPizzaSizeId(secondProduct.getId(), pizzaSize.getId())
             .map(com.restaurant.api.domain.entity.ProductSizePrice::getPrice)
-            .orElse(secondProduct.getPrice());
+            .orElse(defaultSecondPrice);
       } else {
         priceFirst = product.getPrice();
         priceSecond = secondProduct.getPrice();
@@ -465,9 +492,13 @@ public class OrderService {
       basePrice = rawAverage.setScale(0, RoundingMode.CEILING).setScale(2, RoundingMode.UNNECESSARY);
     } else {
       if (pizzaSize != null) {
+        BigDecimal defaultSizePrice = (pizzaSize.getPrice() != null && pizzaSize.getPrice().compareTo(BigDecimal.ZERO) > 0)
+            ? pizzaSize.getPrice()
+            : product.getPrice();
+
         basePrice = productSizePriceRepository.findByProductIdAndPizzaSizeId(product.getId(), pizzaSize.getId())
             .map(com.restaurant.api.domain.entity.ProductSizePrice::getPrice)
-            .orElse(product.getPrice());
+            .orElse(defaultSizePrice);
       } else {
         basePrice = product.getPrice();
       }
@@ -486,6 +517,7 @@ public class OrderService {
         mod.setIngredient(ingredient);
         mod.setModificationType(ModificationType.ADD);
         mod.setExtraPrice(ingredient.getPrice());
+        mod.setQuantity(1);
         items.getModifications().add(mod);
         finalUnitPrice = finalUnitPrice.add(ingredient.getPrice());
       }
@@ -500,6 +532,7 @@ public class OrderService {
         mod.setIngredient(ingredient);
         mod.setModificationType(ModificationType.REMOVE);
         mod.setExtraPrice(BigDecimal.ZERO);
+        mod.setQuantity(1);
 
         items.getModifications().add(mod);
       }

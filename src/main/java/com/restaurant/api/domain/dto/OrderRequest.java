@@ -15,8 +15,24 @@ public record OrderRequest(
     PaymentMethod paymentMethod,
     BigDecimal cashChangeFor,
     String note,
-    List<OrderItemRequest> items
+    List<OrderItemRequest> items,
+    String orderCode
 ) {
+  // Construtor de compatibilidade para código que não envia orderCode
+  public OrderRequest(
+      Long tableId,
+      OrderType orderType,
+      Long addressId,
+      DeliveryAddressDto deliveryAddress,
+      Boolean saveAddress,
+      PaymentMethod paymentMethod,
+      BigDecimal cashChangeFor,
+      String note,
+      List<OrderItemRequest> items
+  ) {
+    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, null);
+  }
+
   // Alias de compatibilidade com versões anteriores
   public Long id() {
     return this.tableId;

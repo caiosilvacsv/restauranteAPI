@@ -70,10 +70,19 @@ public class OrderItem {
   }
 
   public BigDecimal calculateUnitPrice() {
+    BigDecimal priceFirst = (pizzaSize != null && pizzaSize.getPrice() != null && pizzaSize.getPrice().compareTo(BigDecimal.ZERO) > 0)
+        ? pizzaSize.getPrice()
+        : (product != null ? product.getPrice() : BigDecimal.ZERO);
+
     if (secondProduct == null) {
-      return product.getPrice();
+      return priceFirst != null ? priceFirst.setScale(2, java.math.RoundingMode.HALF_UP) : java.math.BigDecimal.ZERO.setScale(2, java.math.RoundingMode.HALF_UP);
     }
-    BigDecimal raw = product.getPrice().add(secondProduct.getPrice())
+
+    BigDecimal priceSecond = (pizzaSize != null && pizzaSize.getPrice() != null && pizzaSize.getPrice().compareTo(BigDecimal.ZERO) > 0)
+        ? pizzaSize.getPrice()
+        : secondProduct.getPrice();
+
+    BigDecimal raw = priceFirst.add(priceSecond)
         .divide(BigDecimal.valueOf(2), 4, java.math.RoundingMode.HALF_UP);
     return raw.setScale(0, java.math.RoundingMode.CEILING).setScale(2, java.math.RoundingMode.UNNECESSARY);
   }
