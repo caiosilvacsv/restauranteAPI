@@ -25,7 +25,7 @@ public class OrderItemModification {
   private Ingredient ingredient;
 
   @Column(nullable = false)
-  private Integer quantity;
+  private Integer quantity = 1;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "type", nullable = false)

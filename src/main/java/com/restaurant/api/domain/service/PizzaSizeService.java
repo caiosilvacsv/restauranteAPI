@@ -58,6 +58,7 @@ public class PizzaSizeService {
     size.setShortName(request.shortName().trim().toUpperCase());
     size.setSlices(request.slices());
     size.setMaxFlavors(request.maxFlavors() != null ? request.maxFlavors() : 1);
+    size.setPrice(request.price() != null ? request.price() : java.math.BigDecimal.ZERO);
     size.setActive(request.active() != null ? request.active() : true);
 
     return PizzaSizeResponse.fromEntity(pizzaSizeRepository.save(size));
@@ -78,6 +79,9 @@ public class PizzaSizeService {
     size.setShortName(request.shortName().trim().toUpperCase());
     size.setSlices(request.slices());
     size.setMaxFlavors(request.maxFlavors() != null ? request.maxFlavors() : 1);
+    if (request.price() != null) {
+      size.setPrice(request.price());
+    }
     if (request.active() != null) {
       size.setActive(request.active());
     }

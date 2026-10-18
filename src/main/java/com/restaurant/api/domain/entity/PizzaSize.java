@@ -29,6 +29,9 @@ public class PizzaSize {
   private Integer maxFlavors = 1;
 
   @Column(nullable = false)
+  private java.math.BigDecimal price = java.math.BigDecimal.ZERO;
+
+  @Column(nullable = false)
   private Boolean active = true;
 
   @Column(name = "created_at", nullable = false)

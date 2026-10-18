@@ -87,6 +87,8 @@ public class SecurityConfiguration {
             // Pagamentos cumulativos
             .requestMatchers(HttpMethod.POST, "/orders/*/payments").hasAnyRole("ADMIN", "WAITER")
             .requestMatchers(HttpMethod.GET, "/orders/*/payments").authenticated()
+            // Relatórios e Fechamento de Caixa
+            .requestMatchers("/reports/**").hasAnyRole("ADMIN", "WAITER")
             // Endereços do cliente
             .requestMatchers("/addresses/**").authenticated()
             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

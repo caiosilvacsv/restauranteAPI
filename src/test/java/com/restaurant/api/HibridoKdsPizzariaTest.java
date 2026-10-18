@@ -56,7 +56,31 @@ class HibridoKdsPizzariaTest {
     item.setSecondProduct(null);
 
     assertFalse(item.isHalfAndHalf());
-    assertEquals(BigDecimal.valueOf(40.00), item.calculateUnitPrice());
+    assertEquals(new BigDecimal("40.00"), item.calculateUnitPrice());
+  }
+
+  @Test
+  @DisplayName("Deve priorizar o valor do tamanho da pizza quando o tamanho possuir preço definido")
+  void testPizzaSizePriceUsageInOrderItem() {
+    Product flavor = new Product();
+    flavor.setName("Calabresa");
+    flavor.setPrice(BigDecimal.valueOf(40.00));
+
+    com.restaurant.api.domain.entity.PizzaSize size = new com.restaurant.api.domain.entity.PizzaSize();
+    size.setName("Pizza Grande");
+    size.setShortName("G");
+    size.setPrice(new BigDecimal("55.00"));
+
+    OrderItem item = new OrderItem();
+    item.setProduct(flavor);
+    item.setPizzaSize(size);
+
+    // O preço deve ser o do tamanho (55.00) e não o do sabor base (40.00)
+    assertEquals(new BigDecimal("55.00"), item.calculateUnitPrice());
+
+    // Se o tamanho não tiver preço ou for 0, deve usar o preço do produto (40.00)
+    size.setPrice(BigDecimal.ZERO);
+    assertEquals(new BigDecimal("40.00"), item.calculateUnitPrice());
   }
 
   @Test
@@ -335,4 +359,281 @@ class HibridoKdsPizzariaTest {
     assertEquals(Integer.valueOf(50), response.estimatedTimeMinutes());
     assertEquals("50 - 60 minutos", response.estimatedTimeText());
   }
+
+  @Test
+  @DisplayName("Deve calcular a data do expediente considerando virada de meia-noite")
+  void testDailyOrderSequenceBusinessDateCalculation() {
+    com.restaurant.api.domain.service.DailyOrderSequenceService service =
+        new com.restaurant.api.domain.service.DailyOrderSequenceService(null);
+
+    java.time.LocalDate baseDate = java.time.LocalDate.of(2026, 10, 17);
+    java.time.LocalTime openTime = java.time.LocalTime.of(18, 0);
+    java.time.LocalTime closeTime = java.time.LocalTime.of(2, 0); // Fecha às 02h da madrugada
+
+    // 1. Pedido feito às 20h do dia 17 -> data é dia 17
+    java.time.ZonedDateTime evening = java.time.ZonedDateTime.of(
+        baseDate, java.time.LocalTime.of(20, 0), com.restaurant.api.domain.service.DailyOrderSequenceService.DEFAULT_ZONE
+    );
+    assertEquals(baseDate, service.calculateBusinessDate(evening, openTime, closeTime));
+
+    // 2. Pedido feito à 01h30 da madrugada do dia 18 -> expediente pertence ao dia 17 (ontem)
+    java.time.LocalDate nextDay = baseDate.plusDays(1);
+    java.time.ZonedDateTime pastMidnight = java.time.ZonedDateTime.of(
+        nextDay, java.time.LocalTime.of(1, 30), com.restaurant.api.domain.service.DailyOrderSequenceService.DEFAULT_ZONE
+    );
+    assertEquals(baseDate, service.calculateBusinessDate(pastMidnight, openTime, closeTime));
+
+    // 3. Horário depois do fechamento (03h00 do dia 18) -> já é considerado dia 18
+    java.time.ZonedDateTime afterClose = java.time.ZonedDateTime.of(
+        nextDay, java.time.LocalTime.of(3, 0), com.restaurant.api.domain.service.DailyOrderSequenceService.DEFAULT_ZONE
+    );
+    assertEquals(nextDay, service.calculateBusinessDate(afterClose, openTime, closeTime));
+  }
+
+  @Test
+  @DisplayName("Deve formatar e realizar parse de códigos diários de pedidos")
+  void testOrderCodeFormattingAndParsing() {
+    com.restaurant.api.domain.service.DailyOrderSequenceService service =
+        new com.restaurant.api.domain.service.DailyOrderSequenceService(null);
+
+    // Formatação com 4 dígitos e prefixo #
+    assertEquals("#0001", service.formatOrderCode(1));
+    assertEquals("#0015", service.formatOrderCode(15));
+    assertEquals("#0120", service.formatOrderCode(120));
+    assertEquals("#1050", service.formatOrderCode(1050));
+
+    // Parsing seguro
+    assertEquals(Integer.valueOf(1), service.parseSequenceNumber("#0001"));
+    assertEquals(Integer.valueOf(15), service.parseSequenceNumber("#0015"));
+    assertEquals(Integer.valueOf(42), service.parseSequenceNumber("42"));
+    assertEquals(Integer.valueOf(99), service.parseSequenceNumber("  #0099  "));
+    assertNull(service.parseSequenceNumber(null));
+    assertNull(service.parseSequenceNumber(""));
+    assertNull(service.parseSequenceNumber("ABC"));
+  }
+
+  @Test
+  @DisplayName("Deve consolidar métricas financeiras, formas de pagamento e produtos no Relatório Diário")
+  void testDailyReportConsolidation() {
+    com.restaurant.api.domain.repository.OrderRepository orderRepo =
+        org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderRepository.class);
+    com.restaurant.api.domain.repository.PaymentRepository paymentRepo =
+        org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PaymentRepository.class);
+    com.restaurant.api.domain.repository.OrderItemRepository itemRepo =
+        org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderItemRepository.class);
+    com.restaurant.api.domain.service.RestaurantConfigService configService =
+        org.mockito.Mockito.mock(com.restaurant.api.domain.service.RestaurantConfigService.class);
+    com.restaurant.api.domain.service.DailyOrderSequenceService sequenceService =
+        org.mockito.Mockito.mock(com.restaurant.api.domain.service.DailyOrderSequenceService.class);
+
+    RestaurantConfig config = new RestaurantConfig();
+    config.setDeliveryFee(new BigDecimal("5.00"));
+    config.setOpenTime(java.time.LocalTime.of(18, 0));
+    config.setCloseTime(java.time.LocalTime.of(23, 30));
+    org.mockito.Mockito.when(configService.getConfigEntity()).thenReturn(config);
+
+    java.time.LocalDate testDate = java.time.LocalDate.of(2026, 10, 17);
+    org.mockito.Mockito.when(sequenceService.getBusinessDate(config)).thenReturn(testDate);
+
+    // 1. Pedido Salão Fechado (ID 1)
+    com.restaurant.api.domain.entity.Order order1 = new com.restaurant.api.domain.entity.Order();
+    order1.setId(1L);
+    order1.setStatus(com.restaurant.api.domain.enums.StatusOrder.CLOSED);
+    order1.setOrderType(com.restaurant.api.domain.enums.OrderType.DINE_IN);
+    order1.setOpenedAt(java.time.Instant.now());
+
+    // 2. Pedido Delivery Entregue (ID 2)
+    com.restaurant.api.domain.entity.Order order2 = new com.restaurant.api.domain.entity.Order();
+    order2.setId(2L);
+    order2.setStatus(com.restaurant.api.domain.enums.StatusOrder.DELIVERED);
+    order2.setOrderType(com.restaurant.api.domain.enums.OrderType.DELIVERY);
+    order2.setOpenedAt(java.time.Instant.now());
+
+    // 3. Pedido Cancelado (ID 3)
+    com.restaurant.api.domain.entity.Order order3 = new com.restaurant.api.domain.entity.Order();
+    order3.setId(3L);
+    order3.setStatus(com.restaurant.api.domain.enums.StatusOrder.CANCELLED);
+    order3.setOpenedAt(java.time.Instant.now());
+
+    org.mockito.Mockito.when(orderRepo.findByOpenedAtBetweenOrderByOpenedAtAsc(
+        org.mockito.ArgumentMatchers.any(java.time.Instant.class),
+        org.mockito.ArgumentMatchers.any(java.time.Instant.class)
+    )).thenReturn(java.util.List.of(order1, order2, order3));
+
+    // Pagamentos do Pedido 1: R$ 30 em Dinheiro + R$ 20 em PIX
+    com.restaurant.api.domain.entity.Payment pay1 = new com.restaurant.api.domain.entity.Payment();
+    pay1.setAmount(new BigDecimal("30.00"));
+    pay1.setMethod(com.restaurant.api.domain.enums.PaymentMethod.CASH);
+    pay1.setStatus(com.restaurant.api.domain.enums.StatusPayment.APPROVED);
+
+    com.restaurant.api.domain.entity.Payment pay2 = new com.restaurant.api.domain.entity.Payment();
+    pay2.setAmount(new BigDecimal("20.00"));
+    pay2.setMethod(com.restaurant.api.domain.enums.PaymentMethod.PIX);
+    pay2.setStatus(com.restaurant.api.domain.enums.StatusPayment.APPROVED);
+
+    // Pagamento do Pedido 2: R$ 70 em Cartão de Crédito
+    com.restaurant.api.domain.entity.Payment pay3 = new com.restaurant.api.domain.entity.Payment();
+    pay3.setAmount(new BigDecimal("70.00"));
+    pay3.setMethod(com.restaurant.api.domain.enums.PaymentMethod.CREDIT_CARD);
+    pay3.setStatus(com.restaurant.api.domain.enums.StatusPayment.APPROVED);
+
+    org.mockito.Mockito.when(paymentRepo.findByOrderIdInAndStatus(
+        org.mockito.ArgumentMatchers.eq(java.util.List.of(1L, 2L)),
+        org.mockito.ArgumentMatchers.eq(com.restaurant.api.domain.enums.StatusPayment.APPROVED)
+    )).thenReturn(java.util.List.of(pay1, pay2, pay3));
+
+    // Itens vendidos
+    Product prodCalabresa = new Product();
+    prodCalabresa.setId(10L);
+    prodCalabresa.setName("Pizza Calabresa");
+    prodCalabresa.setPrice(new BigDecimal("40.00"));
+
+    com.restaurant.api.domain.entity.OrderItem item1 = new com.restaurant.api.domain.entity.OrderItem();
+    item1.setOrder(order1);
+    item1.setProduct(prodCalabresa);
+    item1.setQuantity(2);
+    item1.setUnitPrice(new BigDecimal("40.00"));
+
+    org.mockito.Mockito.when(itemRepo.findValidItemsByOrderIds(
+        org.mockito.ArgumentMatchers.eq(java.util.List.of(1L, 2L)),
+        org.mockito.ArgumentMatchers.eq(com.restaurant.api.domain.enums.StatusOrderItem.CANCELLED)
+    )).thenReturn(java.util.List.of(item1));
+
+    com.restaurant.api.domain.service.ReportService reportService =
+        new com.restaurant.api.domain.service.ReportService(orderRepo, paymentRepo, itemRepo, configService, sequenceService);
+
+    com.restaurant.api.domain.dto.report.DailyReportResponse report = reportService.getDailyReport(testDate);
+
+    assertNotNull(report);
+    assertEquals(testDate, report.businessDate());
+    assertEquals("17/10/2026", report.formattedDate());
+
+    // Métricas operacionais
+    assertEquals(3, report.operations().totalOrdersCreated());
+    assertEquals(2, report.operations().completedOrders());
+    assertEquals(1, report.operations().cancelledOrders());
+
+    // Métricas financeiras (30 + 20 + 70 = 120 bruto)
+    assertEquals(new BigDecimal("120.00"), report.financial().grossTotal());
+    assertEquals(new BigDecimal("5.00"), report.financial().deliveryFeeTotal());
+    assertEquals(new BigDecimal("115.00"), report.financial().netTotal());
+    assertEquals(new BigDecimal("60.00"), report.financial().averageTicket()); // 120 / 2
+
+    // Conferência de formas de pagamento
+    java.util.Map<com.restaurant.api.domain.enums.PaymentMethod, BigDecimal> payMap = report.paymentMethods().stream()
+        .collect(java.util.stream.Collectors.toMap(
+            com.restaurant.api.domain.dto.report.PaymentMethodBreakdownDto::method,
+            com.restaurant.api.domain.dto.report.PaymentMethodBreakdownDto::totalAmount
+        ));
+    assertEquals(new BigDecimal("30.00"), payMap.get(com.restaurant.api.domain.enums.PaymentMethod.CASH));
+    assertEquals(new BigDecimal("20.00"), payMap.get(com.restaurant.api.domain.enums.PaymentMethod.PIX));
+    assertEquals(new BigDecimal("70.00"), payMap.get(com.restaurant.api.domain.enums.PaymentMethod.CREDIT_CARD));
+    assertEquals(new BigDecimal("0.00"), payMap.get(com.restaurant.api.domain.enums.PaymentMethod.DEBIT_CARD));
+
+    // Top produtos
+    assertFalse(report.topProducts().isEmpty());
+    assertEquals("Pizza Calabresa", report.topProducts().get(0).productName());
+    assertEquals(2, report.topProducts().get(0).quantitySold());
+    assertEquals(new BigDecimal("80.00"), report.topProducts().get(0).totalAmount());
+  }
+
+  @Test
+  @DisplayName("Deve calcular intervalo de expediente corretamente sem wrap-around quando fecha às 23:00")
+  void testCalculateShiftIntervalLateClose() {
+    com.restaurant.api.domain.service.ReportService reportService =
+        new com.restaurant.api.domain.service.ReportService(null, null, null, null, null);
+
+    RestaurantConfig config = new RestaurantConfig();
+    config.setOpenTime(java.time.LocalTime.of(15, 0));
+    config.setCloseTime(java.time.LocalTime.of(23, 0));
+
+    java.time.LocalDate date = java.time.LocalDate.of(2026, 10, 17);
+    java.time.Instant[] interval = reportService.calculateShiftInterval(date, config);
+
+    assertNotNull(interval);
+    assertEquals(2, interval.length);
+    assertTrue(interval[0].isBefore(interval[1]), "shiftStart deve ser estritamente anterior a shiftEnd");
+
+    // Intervalo do dia 17 deve cobrir 15:25 (quando o pedido foi feito)
+    java.time.Instant orderInstant = java.time.ZonedDateTime.of(
+        date, java.time.LocalTime.of(15, 25), java.time.ZoneId.of("America/Sao_Paulo")
+    ).toInstant();
+
+    assertTrue(orderInstant.isAfter(interval[0]) && orderInstant.isBefore(interval[1]),
+        "O pedido feito às 15:25 deve estar contido dentro do turno");
+  }
+
+  @Test
+  @DisplayName("Deve computar formas de pagamento a partir do pedido mesmo sem transações no gateway online")
+  void testReportWithOrderPaymentMethodFallback() {
+    com.restaurant.api.domain.repository.OrderRepository orderRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderRepository.class);
+    com.restaurant.api.domain.repository.PaymentRepository paymentRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PaymentRepository.class);
+    com.restaurant.api.domain.repository.OrderItemRepository itemRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderItemRepository.class);
+    com.restaurant.api.domain.service.RestaurantConfigService configService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.RestaurantConfigService.class);
+    com.restaurant.api.domain.service.DailyOrderSequenceService sequenceService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.DailyOrderSequenceService.class);
+
+    RestaurantConfig config = new RestaurantConfig();
+    config.setOpenTime(java.time.LocalTime.of(15, 0));
+    config.setCloseTime(java.time.LocalTime.of(23, 0));
+    config.setDeliveryFee(new BigDecimal("2.00"));
+    org.mockito.Mockito.when(configService.getConfigEntity()).thenReturn(config);
+
+    java.time.LocalDate testDate = java.time.LocalDate.of(2026, 10, 17);
+
+    // Pedido criado pelo cliente/balcão com Cartão de Crédito
+    com.restaurant.api.domain.entity.Order order = new com.restaurant.api.domain.entity.Order();
+    order.setId(100L);
+    order.setStatus(com.restaurant.api.domain.enums.StatusOrder.DELIVERED);
+    order.setOrderType(com.restaurant.api.domain.enums.OrderType.DELIVERY);
+    order.setPaymentMethod(com.restaurant.api.domain.enums.PaymentMethod.CREDIT_CARD);
+    order.setOpenedAt(java.time.Instant.now());
+
+    org.mockito.Mockito.when(orderRepo.findByOpenedAtBetweenOrderByOpenedAtAsc(
+        org.mockito.ArgumentMatchers.any(java.time.Instant.class),
+        org.mockito.ArgumentMatchers.any(java.time.Instant.class)
+    )).thenReturn(java.util.List.of(order));
+
+    // Nenhuma transação no gateway
+    org.mockito.Mockito.when(paymentRepo.findByOrderIdInAndStatus(
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any()
+    )).thenReturn(java.util.Collections.emptyList());
+
+    // Item: R$ 48.00
+    Product pizza = new Product();
+    pizza.setId(1L);
+    pizza.setName("Pizza Especial");
+    pizza.setPrice(new BigDecimal("48.00"));
+
+    com.restaurant.api.domain.entity.OrderItem item = new com.restaurant.api.domain.entity.OrderItem();
+    item.setOrder(order);
+    item.setProduct(pizza);
+    item.setQuantity(1);
+    item.setUnitPrice(new BigDecimal("48.00"));
+
+    org.mockito.Mockito.when(itemRepo.findValidItemsByOrderIds(
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any()
+    )).thenReturn(java.util.List.of(item));
+
+    com.restaurant.api.domain.service.ReportService reportService =
+        new com.restaurant.api.domain.service.ReportService(orderRepo, paymentRepo, itemRepo, configService, sequenceService);
+
+    com.restaurant.api.domain.dto.report.DailyReportResponse report = reportService.getDailyReport(testDate);
+
+    // Total: R$ 48 + 2 (taxa) = 50.00
+    assertEquals(new BigDecimal("50.00"), report.financial().grossTotal());
+    assertEquals(new BigDecimal("2.00"), report.financial().deliveryFeeTotal());
+    assertEquals(new BigDecimal("48.00"), report.financial().netTotal());
+
+    // Forma de pagamento deve ser CREDIT_CARD = 50.00
+    java.util.Map<com.restaurant.api.domain.enums.PaymentMethod, BigDecimal> payMap = report.paymentMethods().stream()
+        .collect(java.util.stream.Collectors.toMap(
+            com.restaurant.api.domain.dto.report.PaymentMethodBreakdownDto::method,
+            com.restaurant.api.domain.dto.report.PaymentMethodBreakdownDto::totalAmount
+        ));
+    assertEquals(new BigDecimal("50.00"), payMap.get(com.restaurant.api.domain.enums.PaymentMethod.CREDIT_CARD));
+  }
 }
+
+
