@@ -13,7 +13,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 @RestController
-@RequestMapping("/ingredient")
+@RequestMapping({"/ingredient", "/ingredients"})
 @Tag(name = "Ingredientes", description = "Endpoints para gerenciamento de ingredientes e adicionais")
 public class IngredientsController {
   private final IngredientsService service;
@@ -22,7 +22,7 @@ public class IngredientsController {
     this.service = service;
   }
 
-  @PostMapping("/create")
+  @PostMapping({"/create", "/create/"})
   @Operation(summary = "Criar novo ingrediente (Admin)")
   public IngredientResponse createIngredient(@RequestBody IngredientRequest request) {
     return service.createIngredient(request);
@@ -34,26 +34,26 @@ public class IngredientsController {
     return service.update(id, request);
   }
 
-  @PutMapping("/{id}/delete")
+  @PutMapping({"/{id}/delete", "/{id}/delete/"})
   @ResponseStatus(HttpStatus.OK)
   @Operation(summary = "Desativar ingrediente (Admin)")
   public void delete(@PathVariable Long id) {
     service.deleteById(id);
   }
 
-  @PutMapping("/{id}/active")
+  @PutMapping({"/{id}/active", "/{id}/active/"})
   @Operation(summary = "Reativar ingrediente (Admin)")
   public IngredientResponse activeIngredient(@PathVariable Long id) {
     return service.activeIngredient(id);
   }
 
-  @GetMapping()
+  @GetMapping({"", "/"})
   @Operation(summary = "Listar ingredientes ativos (paginado)")
   public Page<IngredientResponse> findAll(Pageable page) {
     return service.findAll(page);
   }
 
-  @GetMapping("/delete")
+  @GetMapping({"/delete", "/delete/"})
   @Operation(summary = "Listar ingredientes desativados (Admin, paginado)")
   public Page<IngredientResponse> findAllDelete(Pageable page) {
     return service.findAllDelete(page);

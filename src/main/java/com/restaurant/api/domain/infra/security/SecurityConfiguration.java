@@ -61,10 +61,10 @@ public class SecurityConfiguration {
             .requestMatchers(HttpMethod.POST, "/products/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.PUT, "/products/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.DELETE, "/products/**").hasRole("ADMIN")
-            .requestMatchers(HttpMethod.GET, "/ingredient/**").permitAll()
-            .requestMatchers(HttpMethod.POST, "/ingredient/**").hasRole("ADMIN")
-            .requestMatchers(HttpMethod.PUT, "/ingredient/**").hasRole("ADMIN")
-            .requestMatchers(HttpMethod.DELETE, "/ingredient/**").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.GET, "/ingredient/**", "/ingredient", "/ingredients/**", "/ingredients").permitAll()
+            .requestMatchers(HttpMethod.POST, "/ingredient/**", "/ingredient", "/ingredients/**", "/ingredients").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.PUT, "/ingredient/**", "/ingredient", "/ingredients/**", "/ingredients").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.DELETE, "/ingredient/**", "/ingredient", "/ingredients/**", "/ingredients").hasRole("ADMIN")
             // Gestão de Equipe e Usuários
             .requestMatchers("/users/**").hasRole("ADMIN")
             // Mesas
