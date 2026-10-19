@@ -16,8 +16,23 @@ public record ProductRequest(
     Boolean allowsHalfAndHalf,
     Integer preparationTimeInMinutes,
     Set<Long> ingredientsId,
-    List<ProductSizePriceDto> sizes
+    List<ProductSizePriceDto> sizes,
+    String imageUrl
 ) {
+
+  public ProductRequest(
+      Long categoryId,
+      String name,
+      String description,
+      BigDecimal price,
+      Boolean active,
+      Boolean allowsHalfAndHalf,
+      Integer preparationTimeInMinutes,
+      Set<Long> ingredientsId,
+      List<ProductSizePriceDto> sizes
+  ) {
+    this(categoryId, name, description, price, active, allowsHalfAndHalf, preparationTimeInMinutes, ingredientsId, sizes, null);
+  }
 
   public Product toEntity(CategoryProduct category, Set<Ingredient> ingredients) {
     Product product = new Product();
@@ -32,6 +47,7 @@ public record ProductRequest(
     product.setCategoryProduct(category);
     product.setName(name);
     product.setDescription(description);
+    product.setImageUrl(imageUrl);
     product.setPrice(price != null && price.compareTo(BigDecimal.ZERO) > 0 ? price : BigDecimal.ONE);
     product.setActive(active != null ? active : true);
     product.setAllowsHalfAndHalf(allowsHalfAndHalf != null ? allowsHalfAndHalf : false);

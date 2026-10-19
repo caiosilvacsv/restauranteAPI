@@ -20,8 +20,26 @@ public record ProductResponse(
     String categoryName,
     Instant createAt,
     Set<IngredientResponse> ingredientsId,
-    List<ProductSizePriceDto> sizes
+    List<ProductSizePriceDto> sizes,
+    String imageUrl
 ) {
+  public ProductResponse(
+      Long id,
+      String name,
+      String description,
+      BigDecimal price,
+      Boolean active,
+      Boolean allowsHalfAndHalf,
+      Integer preparationTime,
+      Long categoryId,
+      String categoryName,
+      Instant createAt,
+      Set<IngredientResponse> ingredientsId,
+      List<ProductSizePriceDto> sizes
+  ) {
+    this(id, name, description, price, active, allowsHalfAndHalf, preparationTime, categoryId, categoryName, createAt, ingredientsId, sizes, null);
+  }
+
   public static ProductResponse fromEntity(Product product) {
     List<ProductSizePriceDto> sizes = product.getSizePrices() != null
         ? product.getSizePrices()
@@ -51,7 +69,8 @@ public record ProductResponse(
         categoryName,
         product.getCreateAt(),
         ingredientsId,
-        sizes
+        sizes,
+        product.getImageUrl()
     );
   }
 }
