@@ -76,16 +76,44 @@ public class ProductService {
     if (sizeDtos == null) {
       return;
     }
-    product.getSizePrices().clear();
+
+    // 1. Deduplica por sizeId caso o front envie o mesmo tamanho mais de uma vez
+    java.util.Map<Long, java.math.BigDecimal> incomingSizes = new java.util.LinkedHashMap<>();
     for (var dto : sizeDtos) {
-      com.restaurant.api.domain.entity.PizzaSize size = pizzaSizeRepository.findById(dto.sizeId())
-          .orElseThrow(() -> new NotFoundException("Tamanho não encontrado", "ID do tamanho: " + dto.sizeId()));
-      
-      com.restaurant.api.domain.entity.ProductSizePrice psp = new com.restaurant.api.domain.entity.ProductSizePrice();
-      psp.setProduct(product);
-      psp.setPizzaSize(size);
-      psp.setPrice(dto.price());
-      product.getSizePrices().add(psp);
+      if (dto != null && dto.sizeId() != null) {
+        incomingSizes.put(dto.sizeId(), dto.price() != null ? dto.price() : java.math.BigDecimal.ZERO);
+      }
+    }
+
+    // 2. Remove os tamanhos que não estão mais presentes na requisição
+    product.getSizePrices().removeIf(existing ->
+        existing.getPizzaSize() == null || !incomingSizes.containsKey(existing.getPizzaSize().getId())
+    );
+
+    // 3. Atualiza os existentes in-place ou adiciona os novos
+    java.util.Map<Long, com.restaurant.api.domain.entity.ProductSizePrice> existingMap = product.getSizePrices().stream()
+        .filter(p -> p.getPizzaSize() != null)
+        .collect(java.util.stream.Collectors.toMap(p -> p.getPizzaSize().getId(), p -> p));
+
+    for (java.util.Map.Entry<Long, java.math.BigDecimal> entry : incomingSizes.entrySet()) {
+      Long sizeId = entry.getKey();
+      java.math.BigDecimal price = entry.getValue();
+
+      com.restaurant.api.domain.entity.ProductSizePrice existing = existingMap.get(sizeId);
+      if (existing != null) {
+        // Atualização in-place: Hibernate faz UPDATE no registro existente sem violar uk_product_size
+        existing.setPrice(price);
+      } else {
+        // Novo registro associado ao produto
+        com.restaurant.api.domain.entity.PizzaSize size = pizzaSizeRepository.findById(sizeId)
+            .orElseThrow(() -> new NotFoundException("Tamanho não encontrado", "ID do tamanho: " + sizeId));
+
+        com.restaurant.api.domain.entity.ProductSizePrice psp = new com.restaurant.api.domain.entity.ProductSizePrice();
+        psp.setProduct(product);
+        psp.setPizzaSize(size);
+        psp.setPrice(price);
+        product.getSizePrices().add(psp);
+      }
     }
   }
 

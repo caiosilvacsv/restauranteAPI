@@ -634,6 +634,30 @@ class HibridoKdsPizzariaTest {
         ));
     assertEquals(new BigDecimal("50.00"), payMap.get(com.restaurant.api.domain.enums.PaymentMethod.CREDIT_CARD));
   }
+
+  @Test
+  @DisplayName("Deve mapear imageUrl corretamente em Product, ProductRequest e ProductResponse")
+  void testProductImageUrlMapping() {
+    String sampleUrl = "https://images.unsplash.com/photo-1513104890138-7c749659a591";
+    com.restaurant.api.domain.dto.ProductRequest request = new com.restaurant.api.domain.dto.ProductRequest(
+        1L,
+        "Pizza Margherita Especial",
+        "Molho, mussarela e manjericão fresco",
+        new BigDecimal("45.00"),
+        true,
+        true,
+        30,
+        java.util.Set.of(),
+        java.util.List.of(),
+        sampleUrl
+    );
+
+    Product product = request.toEntity(null, java.util.Set.of());
+    assertEquals(sampleUrl, product.getImageUrl());
+
+    com.restaurant.api.domain.dto.ProductResponse response = com.restaurant.api.domain.dto.ProductResponse.fromEntity(product);
+    assertEquals(sampleUrl, response.imageUrl());
+  }
 }
 
 
