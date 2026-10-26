@@ -1,7 +1,6 @@
 package com.restaurant.api.domain.dto;
 
 import com.restaurant.api.domain.entity.User;
-import com.restaurant.api.domain.infra.security.TokenService;
 
 
 public record UserResponse (
