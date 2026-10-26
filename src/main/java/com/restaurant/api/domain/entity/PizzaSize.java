@@ -22,7 +22,7 @@ public class PizzaSize {
   @Column(name = "short_name", nullable = false, unique = true, length = 10)
   private String shortName;
 
-  @Column(nullable = false)
+  @Column(name = "slices")
   private Integer slices;
 
   @Column(name = "max_flavors", nullable = false)

@@ -1,46 +1,97 @@
-HELP.md
+# ==============================================================================
+# Build & Compiled Output
+# ==============================================================================
 target/
+build/
+dist/
+target_local/
+build_test/
+*.class
+*.war
+*.ear
+*.nar
+*.zip
+*.tar.gz
+*.rar
+
+# Maven Wrapper
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+!**/src/main/**/build/
+!**/src/test/**/build/
 
-### STS ###
+# ==============================================================================
+# Logs & Runtime
+# ==============================================================================
+*.log
+logs/
+log/
+hs_err_pid*
+replay_pid*
+
+# ==============================================================================
+# Environment & Secrets
+# ==============================================================================
+.env
+.env.*
+!.env.example
+!.env.exemple
+*.secret
+*.local.properties
+application-local.properties
+application-secret.properties
+
+# ==============================================================================
+# IDEs & Editors
+# ==============================================================================
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse / Spring Tool Suite (STS)
 .apt_generated
 .classpath
 .factorypath
 .project
-.settings
+.settings/
 .springBeans
 .sts4-cache
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
+# Visual Studio Code
+.vscode/
 
-### NetBeans ###
+# NetBeans
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
 
-### VS Code ###
-.vscode/
+# ==============================================================================
+# Operating System Files
+# ==============================================================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 
-.run
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
-.properties
+# Linux
+*~
 
-### Environment & Secrets ###
-.env
-.env.*
-!.env.example
-!.env.exemple
-
-# graphify
+# ==============================================================================
+# Documentation & Tools
+# ==============================================================================
+HELP.md
 graphify-out/

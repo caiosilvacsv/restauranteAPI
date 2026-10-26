@@ -1,7 +1,6 @@
 package com.restaurant.api.domain.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -16,11 +15,9 @@ public record PizzaSizeRequest(
     @Size(max = 10, message = "O nome curto deve ter no máximo 10 caracteres")
     String shortName,
 
-    @NotNull(message = "A quantidade de fatias é obrigatória")
     @Positive(message = "A quantidade de fatias deve ser maior que zero")
     Integer slices,
 
-    @NotNull(message = "O número máximo de sabores é obrigatório")
     @Positive(message = "O número máximo de sabores deve ser de no mínimo 1")
     Integer maxFlavors,
 
@@ -37,6 +34,6 @@ public record PizzaSizeRequest(
       Integer maxFlavors,
       Boolean active
   ) {
-    this(name, shortName, slices, maxFlavors, BigDecimal.ZERO, active);
+    this(name, shortName, slices, maxFlavors != null ? maxFlavors : 1, BigDecimal.ZERO, active);
   }
 }

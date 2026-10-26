@@ -658,6 +658,54 @@ class HibridoKdsPizzariaTest {
     com.restaurant.api.domain.dto.ProductResponse response = com.restaurant.api.domain.dto.ProductResponse.fromEntity(product);
     assertEquals(sampleUrl, response.imageUrl());
   }
+
+  @Test
+  @DisplayName("Deve permitir criar PizzaSize sem fatias (slices = null) para suportar bebidas e porcoes")
+  void testPizzaSizeWithOptionalSlicesAndDefaultFlavors() {
+    com.restaurant.api.domain.dto.PizzaSizeRequest request = new com.restaurant.api.domain.dto.PizzaSizeRequest(
+        "Lata 350ml",
+        "350ML",
+        null,
+        null,
+        new BigDecimal("6.00"),
+        true
+    );
+
+    assertEquals("Lata 350ml", request.name());
+    assertEquals("350ML", request.shortName());
+    assertNull(request.slices());
+    assertNull(request.maxFlavors());
+
+    // Usando construtor de compatibilidade
+    com.restaurant.api.domain.dto.PizzaSizeRequest compatRequest = new com.restaurant.api.domain.dto.PizzaSizeRequest(
+        "Garrafa 2L",
+        "2L",
+        null,
+        null,
+        true
+    );
+    assertNull(compatRequest.slices());
+    assertEquals(1, compatRequest.maxFlavors());
+    assertEquals(BigDecimal.ZERO, compatRequest.price());
+
+    // Entidade
+    com.restaurant.api.domain.entity.PizzaSize size = new com.restaurant.api.domain.entity.PizzaSize();
+    size.setName(request.name());
+    size.setShortName(request.shortName());
+    size.setSlices(request.slices());
+    size.setMaxFlavors(request.maxFlavors() != null ? request.maxFlavors() : 1);
+    size.setPrice(request.price());
+    size.setActive(request.active());
+
+    assertNull(size.getSlices());
+    assertEquals(1, size.getMaxFlavors());
+    assertEquals(new BigDecimal("6.00"), size.getPrice());
+
+    // Response DTO
+    com.restaurant.api.domain.dto.PizzaSizeResponse response = com.restaurant.api.domain.dto.PizzaSizeResponse.fromEntity(size);
+    assertEquals("Lata 350ml", response.name());
+    assertNull(response.slices());
+    assertEquals(1, response.maxFlavors());
+    assertEquals(new BigDecimal("6.00"), response.price());
+  }
 }
-
-
