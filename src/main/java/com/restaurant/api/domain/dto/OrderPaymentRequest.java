@@ -18,4 +18,7 @@ public record OrderPaymentRequest(
 
     BigDecimal cashGiven
 ) {
+  public OrderPaymentRequest(PaymentMethod method, BigDecimal amount, String payerName) {
+    this(method, amount, payerName, null);
+  }
 }

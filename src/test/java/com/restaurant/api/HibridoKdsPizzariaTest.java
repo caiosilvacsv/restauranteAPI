@@ -708,4 +708,74 @@ class HibridoKdsPizzariaTest {
     assertEquals(1, response.maxFlavors());
     assertEquals(new BigDecimal("6.00"), response.price());
   }
+
+  @Test
+  @DisplayName("Deve validar criacao de OrderRequest com multiplos pagamentos (split payments)")
+  void testOrderRequestWithMultiplePayments() {
+    com.restaurant.api.domain.dto.OrderPaymentRequest p1 = new com.restaurant.api.domain.dto.OrderPaymentRequest(
+        com.restaurant.api.domain.enums.PaymentMethod.PIX,
+        new BigDecimal("30.00"),
+        "Joao"
+    );
+    com.restaurant.api.domain.dto.OrderPaymentRequest p2 = new com.restaurant.api.domain.dto.OrderPaymentRequest(
+        com.restaurant.api.domain.enums.PaymentMethod.CASH,
+        new BigDecimal("20.00"),
+        "Maria"
+    );
+
+    com.restaurant.api.domain.dto.OrderRequest request = new com.restaurant.api.domain.dto.OrderRequest(
+        1L,
+        com.restaurant.api.domain.enums.OrderType.DINE_IN,
+        null,
+        null,
+        false,
+        com.restaurant.api.domain.enums.PaymentMethod.PIX,
+        null,
+        "Observacao mesa 1",
+        java.util.List.of(),
+        "#01",
+        java.util.List.of(p1, p2)
+    );
+
+    assertNotNull(request.payments());
+    assertEquals(2, request.payments().size());
+    assertEquals(new BigDecimal("30.00"), request.payments().get(0).amount());
+    assertEquals(com.restaurant.api.domain.enums.PaymentMethod.PIX, request.payments().get(0).method());
+    assertEquals(new BigDecimal("20.00"), request.payments().get(1).amount());
+    assertEquals(com.restaurant.api.domain.enums.PaymentMethod.CASH, request.payments().get(1).method());
+  }
+
+  @Test
+  @DisplayName("Deve validar DTO OrderPaymentMethodUpdateRequest e validacao de troco")
+  void testOrderPaymentMethodUpdateRequest() {
+    com.restaurant.api.domain.dto.OrderPaymentMethodUpdateRequest req =
+        new com.restaurant.api.domain.dto.OrderPaymentMethodUpdateRequest(
+            com.restaurant.api.domain.enums.PaymentMethod.CASH,
+            new BigDecimal("50.00")
+        );
+
+    assertEquals(com.restaurant.api.domain.enums.PaymentMethod.CASH, req.paymentMethod());
+    assertEquals(new BigDecimal("50.00"), req.cashChangeFor());
+  }
+
+  @Test
+  @DisplayName("Deve validar DTO OrderGeneralUpdateRequest para notas, mesa e endereco")
+  void testOrderGeneralUpdateRequest() {
+    com.restaurant.api.domain.dto.DeliveryAddressDto addr = new com.restaurant.api.domain.dto.DeliveryAddressDto(
+        "Rua Principal", "100", "Centro", "Apto 1", "Perto da praca"
+    );
+    com.restaurant.api.domain.dto.OrderGeneralUpdateRequest req =
+        new com.restaurant.api.domain.dto.OrderGeneralUpdateRequest(
+            "Sem cebola por favor",
+            5L,
+            10L,
+            addr
+        );
+
+    assertEquals("Sem cebola por favor", req.note());
+    assertEquals(5L, req.tableId());
+    assertEquals(10L, req.addressId());
+    assertNotNull(req.deliveryAddress());
+    assertEquals("Rua Principal", req.deliveryAddress().street());
+  }
 }

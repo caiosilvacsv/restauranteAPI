@@ -1,8 +1,10 @@
 package com.restaurant.api.domain.controller;
 
 import com.restaurant.api.domain.dto.OrderEstimateRequest;
+import com.restaurant.api.domain.dto.OrderGeneralUpdateRequest;
 import com.restaurant.api.domain.dto.OrderItemRequest;
 import com.restaurant.api.domain.dto.OrderItemResponse;
+import com.restaurant.api.domain.dto.OrderPaymentMethodUpdateRequest;
 import com.restaurant.api.domain.dto.OrderRequest;
 import com.restaurant.api.domain.dto.OrderResponse;
 import com.restaurant.api.domain.enums.StatusOrder;
@@ -89,6 +91,24 @@ public class OrderController {
     return ResponseEntity.ok(service.cancelOrder(id, reason));
   }
 
+  @PatchMapping("/{id}/payment-method")
+  @Operation(summary = "Alterar meio de pagamento e troco do pedido", description = "Permite alterar a forma de pagamento pretendida e o troco antes do fechamento do pedido.")
+  public ResponseEntity<OrderResponse> updatePaymentMethod(
+      @PathVariable Long id,
+      @Valid @RequestBody OrderPaymentMethodUpdateRequest request
+  ) {
+    return ResponseEntity.ok(service.updatePaymentMethod(id, request));
+  }
+
+  @PatchMapping("/{id}")
+  @Operation(summary = "Atualizar informações gerais do pedido (observações, mesa ou endereço)")
+  public ResponseEntity<OrderResponse> updateOrder(
+      @PathVariable Long id,
+      @RequestBody OrderGeneralUpdateRequest request
+  ) {
+    return ResponseEntity.ok(service.updateOrder(id, request));
+  }
+
   @PostMapping("/{orderId}/items")
   @Operation(summary = "Adicionar item à comanda de mesa ou pedido aberto")
   public ResponseEntity<OrderItemResponse> addItem(
@@ -96,6 +116,25 @@ public class OrderController {
       @RequestBody OrderItemRequest request
   ) {
     return ResponseEntity.status(HttpStatus.CREATED).body(service.addItem(orderId, request));
+  }
+
+  @PutMapping("/{orderId}/items/{itemId}")
+  @Operation(summary = "Editar item existente em uma comanda ou pedido aberto")
+  public ResponseEntity<OrderItemResponse> updateItem(
+      @PathVariable Long orderId,
+      @PathVariable Long itemId,
+      @Valid @RequestBody OrderItemRequest request
+  ) {
+    return ResponseEntity.ok(service.updateItem(orderId, itemId, request));
+  }
+
+  @DeleteMapping("/{orderId}/items/{itemId}")
+  @Operation(summary = "Remover ou estornar item de um pedido/comanda")
+  public ResponseEntity<OrderResponse> removeItem(
+      @PathVariable Long orderId,
+      @PathVariable Long itemId
+  ) {
+    return ResponseEntity.ok(service.removeItem(orderId, itemId));
   }
 
   @GetMapping("/{orderId}/items")

@@ -16,9 +16,26 @@ public record OrderRequest(
     BigDecimal cashChangeFor,
     String note,
     List<OrderItemRequest> items,
-    String orderCode
+    String orderCode,
+    List<OrderPaymentRequest> payments
 ) {
-  // Construtor de compatibilidade para código que não envia orderCode
+  // Construtor de compatibilidade para código que não envia payments
+  public OrderRequest(
+      Long tableId,
+      OrderType orderType,
+      Long addressId,
+      DeliveryAddressDto deliveryAddress,
+      Boolean saveAddress,
+      PaymentMethod paymentMethod,
+      BigDecimal cashChangeFor,
+      String note,
+      List<OrderItemRequest> items,
+      String orderCode
+  ) {
+    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, orderCode, null);
+  }
+
+  // Construtor de compatibilidade para código que não envia orderCode nem payments
   public OrderRequest(
       Long tableId,
       OrderType orderType,
@@ -30,7 +47,7 @@ public record OrderRequest(
       String note,
       List<OrderItemRequest> items
   ) {
-    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, null);
+    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, null, null);
   }
 
   // Alias de compatibilidade com versões anteriores
