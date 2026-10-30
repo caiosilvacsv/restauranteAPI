@@ -294,7 +294,7 @@ public class OrderService {
 
   private void validarAcessoPedido(Order order) {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    if (auth == null || !auth.isAuthenticated()) {
+    if (auth == null || !auth.isAuthenticated() || auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
       throw new org.springframework.security.access.AccessDeniedException("Acesso negado: faça login para visualizar este pedido.");
     }
 

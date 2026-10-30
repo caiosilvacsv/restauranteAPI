@@ -778,4 +778,25 @@ class HibridoKdsPizzariaTest {
     assertNotNull(req.deliveryAddress());
     assertEquals("Rua Principal", req.deliveryAddress().street());
   }
+
+  @Test
+  @DisplayName("Deve suportar clientOrderId em OrderRequest e Order entity para idempotencia")
+  void testClientOrderIdSupport() {
+    com.restaurant.api.domain.dto.OrderRequest request = new com.restaurant.api.domain.dto.OrderRequest(
+        null, com.restaurant.api.domain.enums.OrderType.TAKEOUT, null, null, false,
+        com.restaurant.api.domain.enums.PaymentMethod.PIX, null, "Observacao",
+        java.util.List.of(), "#0001", null, "CLIENT-UUID-123"
+    );
+
+    assertEquals("CLIENT-UUID-123", request.clientOrderId());
+
+    com.restaurant.api.domain.dto.OrderRequest updated = request.withClientOrderId("CLIENT-UUID-456");
+    assertEquals("CLIENT-UUID-456", updated.clientOrderId());
+    assertEquals("Observacao", updated.note());
+    assertEquals("#0001", updated.orderCode());
+
+    com.restaurant.api.domain.entity.Order order = new com.restaurant.api.domain.entity.Order();
+    order.setClientOrderId("CLIENT-UUID-789");
+    assertEquals("CLIENT-UUID-789", order.getClientOrderId());
+  }
 }
