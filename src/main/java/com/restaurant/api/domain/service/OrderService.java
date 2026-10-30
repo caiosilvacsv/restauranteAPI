@@ -77,10 +77,21 @@ public class OrderService {
 
   @Transactional
   public OrderResponse createOrder(OrderRequest request) {
+    // 0. Idempotência: se já existir pedido com o mesmo clientOrderId, retorna o pedido existente sem duplicar
+    if (request.clientOrderId() != null && !request.clientOrderId().isBlank()) {
+      java.util.Optional<Order> existing = orderRepository.findByClientOrderId(request.clientOrderId().trim());
+      if (existing.isPresent()) {
+        return findById(existing.get().getId());
+      }
+    }
+
     RestaurantConfig config = configService.getConfigEntity();
 
     // 1. Instancia o pedido base
     Order order = new Order();
+    if (request.clientOrderId() != null && !request.clientOrderId().isBlank()) {
+      order.setClientOrderId(request.clientOrderId().trim());
+    }
     OrderType type = request.orderType() != null ? request.orderType() : OrderType.TAKEOUT;
     order.setOrderType(type);
     order.setNotes(request.note());
@@ -277,18 +288,34 @@ public class OrderService {
 
   public OrderResponse findById(Long id) {
     Order order = findOrderById(id);
+    validarAcessoPedido(order);
+    return mapToOrderResponse(order);
+  }
 
+  private void validarAcessoPedido(Order order) {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    if (auth != null && auth.getPrincipal() instanceof User user) {
-      boolean isStaff = user.getRole() == com.restaurant.api.domain.enums.Role.ADMIN 
-          || user.getRole() == com.restaurant.api.domain.enums.Role.WAITER;
-      
-      if (!isStaff && (order.getUser() == null || order.getUser().getId() != user.getId())) {
-        throw new BusinessRulesException("Acesso negado", "Você não tem permissão para visualizar este pedido.");
-      }
+    if (auth == null || !auth.isAuthenticated()) {
+      throw new org.springframework.security.access.AccessDeniedException("Acesso negado: faça login para visualizar este pedido.");
     }
 
-    return mapToOrderResponse(order);
+    boolean isStaff = auth.getAuthorities().stream()
+        .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_WAITER"));
+    if (isStaff) {
+      return;
+    }
+
+    if (order.getUser() != null) {
+      if (auth.getPrincipal() instanceof User currentUser) {
+        if (order.getUser().getId() != currentUser.getId()) {
+          throw new org.springframework.security.access.AccessDeniedException("Acesso negado: este pedido pertence a outro usuário.");
+        }
+      } else {
+        String currentLogin = auth.getName();
+        if (!order.getUser().getLogin().equals(currentLogin)) {
+          throw new org.springframework.security.access.AccessDeniedException("Acesso negado: este pedido pertence a outro usuário.");
+        }
+      }
+    }
   }
 
   public OrderResponse mapToOrderResponse(Order order) {

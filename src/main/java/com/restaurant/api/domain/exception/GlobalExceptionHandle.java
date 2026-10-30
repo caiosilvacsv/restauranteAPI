@@ -67,6 +67,17 @@ public class GlobalExceptionHandle {
     return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
   }
 
+  @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+  public ResponseEntity<ErrorResponse> handleAccessDenied(org.springframework.security.access.AccessDeniedException e) {
+    ErrorResponse response = new ErrorResponse(
+        Instant.now(),
+        HttpStatus.FORBIDDEN.value(),
+        "Acesso Negado",
+        List.of(e.getMessage() != null ? e.getMessage() : "Você não tem permissão para visualizar este pedido.")
+    );
+    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ErrorResponse> handleException(Exception e) {
     String title = e.getCause() != null ? e.getCause().toString() : "Internal Server Error";

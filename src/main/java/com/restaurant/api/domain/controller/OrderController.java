@@ -35,7 +35,13 @@ public class OrderController {
 
   @PostMapping
   @Operation(summary = "Criar novo pedido (Delivery, Balcão ou Mesa)")
-  public ResponseEntity<OrderResponse> register(@RequestBody OrderRequest order) {
+  public ResponseEntity<OrderResponse> register(
+      @RequestHeader(value = "X-Client-Order-Id", required = false) String clientOrderIdHeader,
+      @RequestBody OrderRequest order
+  ) {
+    if (clientOrderIdHeader != null && !clientOrderIdHeader.isBlank() && (order.clientOrderId() == null || order.clientOrderId().isBlank())) {
+      order = order.withClientOrderId(clientOrderIdHeader.trim());
+    }
     return ResponseEntity.status(HttpStatus.CREATED).body(service.createOrder(order));
   }
 

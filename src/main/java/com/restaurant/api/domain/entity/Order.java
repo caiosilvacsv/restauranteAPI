@@ -45,6 +45,9 @@ public class Order {
   @Column(name = "order_code", length = 10)
   private String orderCode;
 
+  @Column(name = "client_order_id", length = 64)
+  private String clientOrderId;
+
   @Embedded
   private DeliveryAddress deliveryAddress;
 

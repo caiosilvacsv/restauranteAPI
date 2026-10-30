@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecificationExecutor<Order> {
+  Optional<Order> findByClientOrderId(String clientOrderId);
   Optional<Order> findFirstByTableIdAndStatusNotIn(Long tableId, Collection<StatusOrder> statuses);
   Page<Order> findByUserIdOrderByOpenedAtDesc(Long userId, Pageable pageable);
   Page<Order> findByStatusOrderByOpenedAtDesc(StatusOrder status, Pageable pageable);
