@@ -13,7 +13,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_customer_phone ON orders(customer_phone);
 -- recuperando o nome real informado em payment.payer_name quando disponível.
 UPDATE orders o
 SET customer_name = TRIM(p.payer_name)
-FROM payments p
+FROM payment p
 WHERE p.order_id = o.id
   AND p.payer_name IS NOT NULL
   AND TRIM(p.payer_name) <> ''
@@ -25,7 +25,7 @@ WHERE p.order_id = o.id
 UPDATE users u
 SET name = TRIM(p.payer_name)
 FROM orders o
-JOIN payments p ON p.order_id = o.id
+JOIN payment p ON p.order_id = o.id
 WHERE o.user_id = u.id
   AND (u.name IS NULL OR TRIM(u.name) = '' OR LOWER(TRIM(u.name)) = 'cliente')
   AND p.payer_name IS NOT NULL
