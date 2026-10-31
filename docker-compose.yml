@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 1. Banco de Dados PostgreSQL
   postgres:
@@ -47,5 +45,22 @@ services:
       ADMIN_DEFAULT_NAME: ${ADMIN_DEFAULT_NAME:-Administrador}
       ADMIN_DEFAULT_PHONE: ${ADMIN_DEFAULT_PHONE:-5500000000000}
 
+  # 3. Proxy Reverso Caddy com HTTPS/SSL Automático
+  caddy:
+    image: caddy:2-alpine
+    container_name: restaurante_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:
