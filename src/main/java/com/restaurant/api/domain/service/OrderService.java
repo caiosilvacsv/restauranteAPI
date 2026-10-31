@@ -12,6 +12,7 @@ import com.restaurant.api.domain.entity.*;
 import com.restaurant.api.domain.enums.ModificationType;
 import com.restaurant.api.domain.enums.OrderType;
 import com.restaurant.api.domain.enums.StatusOrderItem;
+import com.restaurant.api.domain.enums.Role;
 import com.restaurant.api.domain.enums.StatusPayment;
 import com.restaurant.api.domain.exception.BusinessRulesException;
 import com.restaurant.api.domain.exception.NotFoundException;
@@ -48,6 +49,7 @@ public class OrderService {
   private final com.restaurant.api.domain.repository.UserAddressRepository userAddressRepository;
   private final PaymentRepository paymentRepository;
   private final DailyOrderSequenceService dailyOrderSequenceService;
+  private final UserRepository userRepository;
 
   public OrderService(
       OrderRepository orderRepository,
@@ -60,7 +62,8 @@ public class OrderService {
       com.restaurant.api.domain.repository.ProductSizePriceRepository productSizePriceRepository,
       com.restaurant.api.domain.repository.UserAddressRepository userAddressRepository,
       PaymentRepository paymentRepository,
-      DailyOrderSequenceService dailyOrderSequenceService
+      DailyOrderSequenceService dailyOrderSequenceService,
+      UserRepository userRepository
   ) {
     this.orderRepository = orderRepository;
     this.tableRepository = tableRepository;
@@ -73,6 +76,7 @@ public class OrderService {
     this.userAddressRepository = userAddressRepository;
     this.paymentRepository = paymentRepository;
     this.dailyOrderSequenceService = dailyOrderSequenceService;
+    this.userRepository = userRepository;
   }
 
   @Transactional
@@ -172,6 +176,43 @@ public class OrderService {
       order.setEstimatedDeliveryAt(java.time.Instant.now().plus(java.time.Duration.ofMinutes(config.getEstimatedTimeMinutes())));
     }
 
+    // Resolução de dados do cliente (snapshot no pedido e autocura de conta)
+    String resolvedCustomerName = null;
+    if (request.customerName() != null && !request.customerName().trim().isBlank() && !request.customerName().trim().equalsIgnoreCase("Cliente")) {
+      resolvedCustomerName = request.customerName().trim();
+    } else if (request.payments() != null) {
+      for (OrderPaymentRequest pay : request.payments()) {
+        if (pay != null && pay.payerName() != null && !pay.payerName().trim().isBlank() && !pay.payerName().trim().equalsIgnoreCase("Cliente")) {
+          resolvedCustomerName = pay.payerName().trim();
+          break;
+        }
+      }
+    }
+
+    if (resolvedCustomerName == null && authenticatedUser != null && authenticatedUser.getRole() != Role.ADMIN && authenticatedUser.getRole() != Role.WAITER) {
+      if (authenticatedUser.getName() != null && !authenticatedUser.getName().isBlank() && !authenticatedUser.getName().equalsIgnoreCase("Cliente")) {
+        resolvedCustomerName = authenticatedUser.getName().trim();
+      }
+    }
+
+    String resolvedCustomerPhone = null;
+    if (request.customerPhone() != null && !request.customerPhone().trim().isBlank()) {
+      resolvedCustomerPhone = request.customerPhone().trim();
+    } else if (authenticatedUser != null && authenticatedUser.getNumber() != null && !authenticatedUser.getNumber().isBlank()) {
+      resolvedCustomerPhone = authenticatedUser.getNumber().trim();
+    }
+
+    order.setCustomerName(resolvedCustomerName);
+    order.setCustomerPhone(resolvedCustomerPhone);
+
+    // Autocura de cadastro de cliente se seu nome estiver nulo ou "Cliente"
+    if (authenticatedUser != null && authenticatedUser.getRole() != Role.ADMIN && authenticatedUser.getRole() != Role.WAITER && resolvedCustomerName != null) {
+      if (authenticatedUser.getName() == null || authenticatedUser.getName().isBlank() || authenticatedUser.getName().equalsIgnoreCase("Cliente")) {
+        authenticatedUser.setName(resolvedCustomerName);
+        userRepository.save(authenticatedUser);
+      }
+    }
+
     Order savedOrder = orderRepository.save(order);
 
     // 5. Adiciona itens ao pedido
@@ -211,7 +252,8 @@ public class OrderService {
           payment.setMethod(payReq.method());
           payment.setAmount(payReq.amount());
           payment.setStatus(StatusPayment.APPROVED);
-          payment.setPayerName(payReq.payerName() != null ? payReq.payerName() : (savedOrder.getUser() != null ? savedOrder.getUser().getName() : "Cliente"));
+          String payer = payReq.payerName() != null && !payReq.payerName().trim().isBlank() ? payReq.payerName().trim() : (savedOrder.getCustomerName() != null ? savedOrder.getCustomerName() : (savedOrder.getUser() != null ? savedOrder.getUser().getName() : "Cliente"));
+          payment.setPayerName(payer);
           payment.setPaymentDate(Instant.now());
           paymentRepository.save(payment);
         }

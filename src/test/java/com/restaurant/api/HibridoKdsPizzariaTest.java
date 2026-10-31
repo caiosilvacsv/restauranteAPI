@@ -799,4 +799,66 @@ class HibridoKdsPizzariaTest {
     order.setClientOrderId("CLIENT-UUID-789");
     assertEquals("CLIENT-UUID-789", order.getClientOrderId());
   }
+
+  @Test
+  @DisplayName("Deve suportar customerName e customerPhone no OrderRequest, Order e OrderResponse")
+  void testCustomerFieldsInOrderAndResponse() {
+    com.restaurant.api.domain.dto.OrderRequest request = new com.restaurant.api.domain.dto.OrderRequest(
+        null, com.restaurant.api.domain.enums.OrderType.DELIVERY, null, null, false,
+        com.restaurant.api.domain.enums.PaymentMethod.PIX, null, "Observacao",
+        java.util.List.of(), "#0002", null, "CLIENT-UUID-999",
+        "Tatiane Aparecida Alves", "38992695661"
+    );
+
+    assertEquals("Tatiane Aparecida Alves", request.customerName());
+    assertEquals("38992695661", request.customerPhone());
+
+    com.restaurant.api.domain.entity.Order order = new com.restaurant.api.domain.entity.Order();
+    order.setCustomerName("Tatiane Aparecida Alves");
+    order.setCustomerPhone("38992695661");
+
+    com.restaurant.api.domain.dto.OrderResponse response = com.restaurant.api.domain.dto.OrderResponse.fromEntity(order);
+    assertEquals("Tatiane Aparecida Alves", response.customerName());
+    assertEquals("38992695661", response.customerPhone());
+
+    // Fallback: quando customerName na Order for nulo, deve pegar do User
+    com.restaurant.api.domain.entity.Order orderLegacy = new com.restaurant.api.domain.entity.Order();
+    com.restaurant.api.domain.entity.User user = new com.restaurant.api.domain.entity.User();
+    user.setName("Carlos Legacy");
+    user.setNumber("38999991111");
+    orderLegacy.setUser(user);
+
+    com.restaurant.api.domain.dto.OrderResponse legacyResponse = com.restaurant.api.domain.dto.OrderResponse.fromEntity(orderLegacy);
+    assertEquals("Carlos Legacy", legacyResponse.customerName());
+    assertEquals("38999991111", legacyResponse.customerPhone());
+  }
+
+  @Test
+  @DisplayName("Deve atualizar o nome do visitante em AuthService.loginGuest quando novo nome for informado")
+  void testAuthServiceLoginGuestUpdatesName() {
+    com.restaurant.api.domain.repository.UserRepository userRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserRepository.class);
+    com.restaurant.api.domain.infra.security.TokenService tokenService = org.mockito.Mockito.mock(com.restaurant.api.domain.infra.security.TokenService.class);
+    org.springframework.security.authentication.AuthenticationManager authManager = org.mockito.Mockito.mock(org.springframework.security.authentication.AuthenticationManager.class);
+
+    com.restaurant.api.domain.service.AuthService authService = new com.restaurant.api.domain.service.AuthService(
+        userRepo, authManager, tokenService
+    );
+
+    com.restaurant.api.domain.entity.User existingUser = new com.restaurant.api.domain.entity.User();
+    existingUser.setId(10L);
+    existingUser.setLogin("GUEST-38992695661");
+    existingUser.setName("Cliente");
+    existingUser.setNumber("38992695661");
+    existingUser.setRole(com.restaurant.api.domain.enums.Role.CUSTOMER);
+
+    org.mockito.Mockito.when(userRepo.findByLogin("GUEST-38992695661")).thenReturn(existingUser);
+    org.mockito.Mockito.when(tokenService.generateToken(org.mockito.ArgumentMatchers.any())).thenReturn("dummy-jwt-token");
+
+    com.restaurant.api.domain.dto.GuestRequest guestReq = new com.restaurant.api.domain.dto.GuestRequest("Tatiane Alves", "38992695661");
+    com.restaurant.api.domain.dto.UserResponse res = authService.loginGuest(guestReq);
+
+    assertEquals("Tatiane Alves", existingUser.getName());
+    assertEquals("Tatiane Alves", res.name());
+    org.mockito.Mockito.verify(userRepo).save(existingUser);
+  }
 }

@@ -66,7 +66,21 @@ public class AuthService {
     String guestLogin = "GUEST-" + request.number();
 
     User user = userRepository.findByLogin(guestLogin);
-    User finalGuest = (user != null) ? user : createGuest(guestLogin, request);
+    User finalGuest;
+
+    if (user != null) {
+      String novoNome = request.name() != null ? request.name().trim() : "";
+      boolean temNovoNomeValido = !novoNome.isBlank() && !novoNome.equalsIgnoreCase("Cliente");
+      boolean nomeAtualEhGenerico = user.getName() == null || user.getName().isBlank() || user.getName().equalsIgnoreCase("Cliente");
+
+      if (temNovoNomeValido && (nomeAtualEhGenerico || !novoNome.equalsIgnoreCase(user.getName()))) {
+        user.setName(novoNome);
+        userRepository.save(user);
+      }
+      finalGuest = user;
+    } else {
+      finalGuest = createGuest(guestLogin, request);
+    }
 
     String token = tokenService.generateToken(finalGuest);
     return UserResponse.fromEntity(finalGuest, token);
@@ -81,7 +95,12 @@ public class AuthService {
                 UUID.randomUUID().toString() +
                 guestLogin));
     guest.setNumber(request.number());
-    guest.setName(request.name());
+    String nome = request.name() != null ? request.name().trim() : "";
+    if (nome.isBlank() || nome.equalsIgnoreCase("Cliente")) {
+      guest.setName(null);
+    } else {
+      guest.setName(nome);
+    }
     guest.setRole(Role.CUSTOMER);
     guest.setActive(true);
     return userRepository.save(guest);

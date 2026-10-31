@@ -18,15 +18,36 @@ public record OrderRequest(
     List<OrderItemRequest> items,
     String orderCode,
     List<OrderPaymentRequest> payments,
-    String clientOrderId
+    String clientOrderId,
+    String customerName,
+    String customerPhone
 ) {
   // Cria uma nova instância de OrderRequest atribuindo o clientOrderId
   public OrderRequest withClientOrderId(String newClientOrderId) {
     return new OrderRequest(
         this.tableId, this.orderType, this.addressId, this.deliveryAddress,
         this.saveAddress, this.paymentMethod, this.cashChangeFor, this.note,
-        this.items, this.orderCode, this.payments, newClientOrderId
+        this.items, this.orderCode, this.payments, newClientOrderId,
+        this.customerName, this.customerPhone
     );
+  }
+
+  // Construtor de compatibilidade para código que envia até clientOrderId
+  public OrderRequest(
+      Long tableId,
+      OrderType orderType,
+      Long addressId,
+      DeliveryAddressDto deliveryAddress,
+      Boolean saveAddress,
+      PaymentMethod paymentMethod,
+      BigDecimal cashChangeFor,
+      String note,
+      List<OrderItemRequest> items,
+      String orderCode,
+      List<OrderPaymentRequest> payments,
+      String clientOrderId
+  ) {
+    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, orderCode, payments, clientOrderId, null, null);
   }
 
   // Construtor de compatibilidade para código que envia até payments
@@ -43,7 +64,7 @@ public record OrderRequest(
       String orderCode,
       List<OrderPaymentRequest> payments
   ) {
-    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, orderCode, payments, null);
+    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, orderCode, payments, null, null, null);
   }
 
   // Construtor de compatibilidade para código que não envia payments nem clientOrderId
@@ -59,7 +80,7 @@ public record OrderRequest(
       List<OrderItemRequest> items,
       String orderCode
   ) {
-    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, orderCode, null, null);
+    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, orderCode, null, null, null, null);
   }
 
   // Construtor de compatibilidade para código que não envia orderCode, payments nem clientOrderId
@@ -74,7 +95,7 @@ public record OrderRequest(
       String note,
       List<OrderItemRequest> items
   ) {
-    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, null, null, null);
+    this(tableId, orderType, addressId, deliveryAddress, saveAddress, paymentMethod, cashChangeFor, note, items, null, null, null, null, null);
   }
 
   // Alias de compatibilidade com versões anteriores

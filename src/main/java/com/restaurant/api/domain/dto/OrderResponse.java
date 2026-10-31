@@ -68,8 +68,13 @@ public record OrderResponse(
         ? order.getOrderCode() 
         : (order.getId() != null ? String.format("#%04d", order.getId()) : null);
 
-    String customerName = order.getUser() != null ? order.getUser().getName() : null;
-    String customerPhone = order.getUser() != null ? order.getUser().getNumber() : null;
+    String customerName = order.getCustomerName() != null && !order.getCustomerName().isBlank()
+        ? order.getCustomerName()
+        : (order.getUser() != null ? order.getUser().getName() : null);
+
+    String customerPhone = order.getCustomerPhone() != null && !order.getCustomerPhone().isBlank()
+        ? order.getCustomerPhone()
+        : (order.getUser() != null ? order.getUser().getNumber() : null);
 
     return new OrderResponse(
         order.getId(),
