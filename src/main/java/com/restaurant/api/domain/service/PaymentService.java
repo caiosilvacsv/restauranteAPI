@@ -82,6 +82,20 @@ public class PaymentService {
 
     boolean isFullyPaid = newRemaining.compareTo(BigDecimal.ZERO) <= 0;
 
+    // Sincroniza a forma de pagamento no pedido se ainda não definida ou se quitado
+    if (order.getPaymentMethod() == null) {
+      order.setPaymentMethod(request.method());
+    } else if (isFullyPaid) {
+      if (existingPayments.isEmpty()) {
+        order.setPaymentMethod(request.method());
+      } else {
+        boolean allSameMethod = existingPayments.stream().allMatch(p -> p.getMethod() == request.method());
+        if (allSameMethod) {
+          order.setPaymentMethod(request.method());
+        }
+      }
+    }
+
     // Se quitou totalmente, fecha o pedido e libera a mesa
     if (isFullyPaid) {
       order.close();
@@ -103,6 +117,8 @@ public class PaymentService {
             });
         orderItemRepository.saveAll(items);
       }
+    } else if (order.getPaymentMethod() == request.method()) {
+      orderRepository.save(order);
     }
 
     return getOrderPaymentStatus(orderId);
@@ -125,7 +141,7 @@ public class PaymentService {
       remaining = BigDecimal.ZERO;
     }
 
-    boolean isFullyPaid = remaining.compareTo(BigDecimal.ZERO) <= 0;
+    boolean isFullyPaid = order.getStatus() != StatusOrder.CANCELLED && (remaining.compareTo(BigDecimal.ZERO) <= 0);
 
     List<PaymentItemDto> paymentDtos = payments.stream()
         .map(PaymentItemDto::fromEntity)
@@ -143,10 +159,14 @@ public class PaymentService {
   }
 
   public BigDecimal calculateOrderTotal(Order order) {
+    if (order.getStatus() == StatusOrder.CANCELLED) {
+      return BigDecimal.ZERO;
+    }
     List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
     BigDecimal itemsTotal = items.stream()
+        .filter(item -> item.getStatus() != com.restaurant.api.domain.enums.StatusOrderItem.CANCELLED)
         .map(item -> item.getUnitPrice() != null 
-            ? item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())) 
+            ? item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity() != null ? item.getQuantity() : 1)) 
             : BigDecimal.ZERO)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
 

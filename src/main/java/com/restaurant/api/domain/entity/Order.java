@@ -48,6 +48,10 @@ public class Order {
   @Column(name = "client_order_id", length = 64)
   private String clientOrderId;
 
+  public void setClientOrderId(String clientOrderId) {
+    this.clientOrderId = (clientOrderId != null && !clientOrderId.isBlank()) ? clientOrderId.trim() : null;
+  }
+
   @Column(name = "customer_name", length = 150)
   private String customerName;
 

@@ -4,6 +4,8 @@ import com.restaurant.api.domain.dto.RestaurantConfigRequest;
 import com.restaurant.api.domain.dto.RestaurantConfigResponse;
 import com.restaurant.api.domain.entity.RestaurantConfig;
 import com.restaurant.api.domain.repository.RestaurantConfigRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +21,7 @@ public class RestaurantConfigService {
     this.repository = repository;
   }
 
+  @Cacheable(value = "restaurantConfig")
   public RestaurantConfig getConfigEntity() {
     return repository.findAll().stream().findFirst().orElseGet(() -> {
       RestaurantConfig defaultConfig = new RestaurantConfig();
@@ -36,11 +39,13 @@ public class RestaurantConfigService {
     });
   }
 
+  @Cacheable(value = "restaurantConfig", key = "'dto'")
   public RestaurantConfigResponse getConfig() {
     return RestaurantConfigResponse.fromEntity(getConfigEntity());
   }
 
   @Transactional
+  @CacheEvict(value = {"restaurantConfig", "restaurant_config"}, allEntries = true)
   public RestaurantConfigResponse updateConfig(RestaurantConfigRequest request) {
     RestaurantConfig config = getConfigEntity();
 
@@ -93,6 +98,7 @@ public class RestaurantConfigService {
   }
 
   @Transactional
+  @CacheEvict(value = {"restaurantConfig", "restaurant_config"}, allEntries = true)
   public RestaurantConfigResponse updateEstimatedTime(Integer minutes) {
     RestaurantConfig config = getConfigEntity();
     config.setEstimatedTimeMinutes(minutes);

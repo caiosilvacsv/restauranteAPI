@@ -36,4 +36,17 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
       @org.springframework.data.repository.query.Param("orderIds") java.util.Collection<Long> orderIds,
       @org.springframework.data.repository.query.Param("excludedStatus") StatusOrderItem excludedStatus
   );
+
+  @Query("""
+    SELECT DISTINCT i FROM OrderItem i
+    JOIN FETCH i.order
+    JOIN FETCH i.product
+    LEFT JOIN FETCH i.secondProduct
+    LEFT JOIN FETCH i.pizzaSize
+    LEFT JOIN FETCH i.modifications m
+    LEFT JOIN FETCH m.ingredient
+    WHERE i.order.id IN :orderIds
+    ORDER BY i.id ASC
+  """)
+  List<OrderItem> findByOrderIdInWithDetails(@org.springframework.data.repository.query.Param("orderIds") java.util.Collection<Long> orderIds);
 }

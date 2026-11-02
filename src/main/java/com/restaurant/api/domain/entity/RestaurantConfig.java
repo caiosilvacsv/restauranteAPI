@@ -16,7 +16,9 @@ import java.time.ZoneId;
 @AllArgsConstructor
 @Entity
 @Table(name = "restaurant_config")
-public class RestaurantConfig {
+public class RestaurantConfig implements java.io.Serializable {
+
+  private static final long serialVersionUID = 1L;
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -861,4 +861,297 @@ class HibridoKdsPizzariaTest {
     assertEquals("Tatiane Alves", res.name());
     org.mockito.Mockito.verify(userRepo).save(existingUser);
   }
+
+  @Test
+  @DisplayName("F3: Deve criar registro em payment ao fechar pedido (CLOSED) sem pagamentos previos")
+  void testUpdateStatusClosedCreatesPaymentWhenNoneExists() {
+    com.restaurant.api.domain.repository.OrderRepository orderRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderRepository.class);
+    com.restaurant.api.domain.repository.RestaurantTableRepository tableRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.RestaurantTableRepository.class);
+    com.restaurant.api.domain.repository.ProductRepository productRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductRepository.class);
+    com.restaurant.api.domain.repository.OrderItemRepository itemRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderItemRepository.class);
+    com.restaurant.api.domain.repository.IngredientRepository ingRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.IngredientRepository.class);
+    com.restaurant.api.domain.service.RestaurantConfigService configService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.RestaurantConfigService.class);
+    com.restaurant.api.domain.repository.PizzaSizeRepository sizeRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PizzaSizeRepository.class);
+    com.restaurant.api.domain.repository.ProductSizePriceRepository pspRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductSizePriceRepository.class);
+    com.restaurant.api.domain.repository.UserAddressRepository addrRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserAddressRepository.class);
+    com.restaurant.api.domain.repository.PaymentRepository paymentRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PaymentRepository.class);
+    com.restaurant.api.domain.service.DailyOrderSequenceService seqService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.DailyOrderSequenceService.class);
+    com.restaurant.api.domain.repository.UserRepository userRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserRepository.class);
+
+    RestaurantConfig config = new RestaurantConfig();
+    config.setDeliveryFee(new BigDecimal("2.00"));
+    org.mockito.Mockito.when(configService.getConfigEntity()).thenReturn(config);
+
+    com.restaurant.api.domain.entity.Order order = new com.restaurant.api.domain.entity.Order();
+    order.setId(10L);
+    order.setStatus(com.restaurant.api.domain.enums.StatusOrder.OPENED);
+    order.setOrderType(com.restaurant.api.domain.enums.OrderType.TAKEOUT);
+    order.setPaymentMethod(com.restaurant.api.domain.enums.PaymentMethod.PIX);
+    order.setCustomerName("Carlos Teste");
+
+    org.mockito.Mockito.when(orderRepo.findById(10L)).thenReturn(java.util.Optional.of(order));
+    org.mockito.Mockito.when(orderRepo.save(org.mockito.ArgumentMatchers.any(com.restaurant.api.domain.entity.Order.class))).thenAnswer(i -> i.getArgument(0));
+    org.mockito.Mockito.when(paymentRepo.findByOrderId(10L)).thenReturn(java.util.Collections.emptyList());
+    org.mockito.Mockito.when(paymentRepo.findByOrderIdAndStatus(10L, com.restaurant.api.domain.enums.StatusPayment.APPROVED)).thenReturn(java.util.Collections.emptyList());
+
+    // 1 item de R$ 35.00
+    Product product = new Product();
+    product.setPrice(new BigDecimal("35.00"));
+    OrderItem item = new OrderItem();
+    item.setProduct(product);
+    item.setQuantity(1);
+    item.setUnitPrice(new BigDecimal("35.00"));
+    org.mockito.Mockito.when(itemRepo.findByOrderId(10L)).thenReturn(java.util.List.of(item));
+
+    com.restaurant.api.domain.service.OrderService service = new com.restaurant.api.domain.service.OrderService(
+        orderRepo, tableRepo, productRepo, itemRepo, ingRepo, configService,
+        sizeRepo, pspRepo, addrRepo, paymentRepo, seqService, userRepo
+    );
+
+    com.restaurant.api.domain.dto.OrderResponse response = service.updateStatus(10L, com.restaurant.api.domain.enums.StatusOrder.CLOSED);
+
+    assertEquals(com.restaurant.api.domain.enums.StatusOrder.CLOSED, response.status());
+    org.mockito.ArgumentCaptor<com.restaurant.api.domain.entity.Payment> captor = org.mockito.ArgumentCaptor.forClass(com.restaurant.api.domain.entity.Payment.class);
+    org.mockito.Mockito.verify(paymentRepo).save(captor.capture());
+    com.restaurant.api.domain.entity.Payment savedPayment = captor.getValue();
+    assertEquals(new BigDecimal("35.00"), savedPayment.getAmount());
+    assertEquals(com.restaurant.api.domain.enums.PaymentMethod.PIX, savedPayment.getMethod());
+    assertEquals(com.restaurant.api.domain.enums.StatusPayment.APPROVED, savedPayment.getStatus());
+    assertEquals("Carlos Teste", savedPayment.getPayerName());
+  }
+
+  @Test
+  @DisplayName("F3: Deve sincronizar metodo do payment quando este diferir de order.paymentMethod ao fechar")
+  void testUpdateStatusClosedSyncsPaymentMethodWhenDifferent() {
+    com.restaurant.api.domain.repository.OrderRepository orderRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderRepository.class);
+    com.restaurant.api.domain.repository.RestaurantTableRepository tableRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.RestaurantTableRepository.class);
+    com.restaurant.api.domain.repository.ProductRepository productRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductRepository.class);
+    com.restaurant.api.domain.repository.OrderItemRepository itemRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderItemRepository.class);
+    com.restaurant.api.domain.repository.IngredientRepository ingRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.IngredientRepository.class);
+    com.restaurant.api.domain.service.RestaurantConfigService configService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.RestaurantConfigService.class);
+    com.restaurant.api.domain.repository.PizzaSizeRepository sizeRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PizzaSizeRepository.class);
+    com.restaurant.api.domain.repository.ProductSizePriceRepository pspRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductSizePriceRepository.class);
+    com.restaurant.api.domain.repository.UserAddressRepository addrRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserAddressRepository.class);
+    com.restaurant.api.domain.repository.PaymentRepository paymentRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PaymentRepository.class);
+    com.restaurant.api.domain.service.DailyOrderSequenceService seqService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.DailyOrderSequenceService.class);
+    com.restaurant.api.domain.repository.UserRepository userRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserRepository.class);
+
+    RestaurantConfig config = new RestaurantConfig();
+    config.setDeliveryFee(new BigDecimal("2.00"));
+    org.mockito.Mockito.when(configService.getConfigEntity()).thenReturn(config);
+
+    com.restaurant.api.domain.entity.Order order = new com.restaurant.api.domain.entity.Order();
+    order.setId(10L);
+    order.setStatus(com.restaurant.api.domain.enums.StatusOrder.OPENED);
+    order.setOrderType(com.restaurant.api.domain.enums.OrderType.TAKEOUT);
+    order.setPaymentMethod(com.restaurant.api.domain.enums.PaymentMethod.CREDIT_CARD);
+
+    com.restaurant.api.domain.entity.Payment existingPayment = new com.restaurant.api.domain.entity.Payment();
+    existingPayment.setId(1L);
+    existingPayment.setMethod(com.restaurant.api.domain.enums.PaymentMethod.CASH);
+    existingPayment.setAmount(new BigDecimal("35.00"));
+    existingPayment.setStatus(com.restaurant.api.domain.enums.StatusPayment.APPROVED);
+
+    org.mockito.Mockito.when(orderRepo.findById(10L)).thenReturn(java.util.Optional.of(order));
+    org.mockito.Mockito.when(orderRepo.save(org.mockito.ArgumentMatchers.any(com.restaurant.api.domain.entity.Order.class))).thenAnswer(i -> i.getArgument(0));
+    org.mockito.Mockito.when(paymentRepo.findByOrderId(10L)).thenReturn(java.util.List.of(existingPayment));
+    org.mockito.Mockito.when(paymentRepo.findByOrderIdAndStatus(10L, com.restaurant.api.domain.enums.StatusPayment.APPROVED)).thenReturn(java.util.List.of(existingPayment));
+
+    com.restaurant.api.domain.service.OrderService service = new com.restaurant.api.domain.service.OrderService(
+        orderRepo, tableRepo, productRepo, itemRepo, ingRepo, configService,
+        sizeRepo, pspRepo, addrRepo, paymentRepo, seqService, userRepo
+    );
+
+    service.updateStatus(10L, com.restaurant.api.domain.enums.StatusOrder.CLOSED);
+
+    assertEquals(com.restaurant.api.domain.enums.PaymentMethod.CREDIT_CARD, existingPayment.getMethod());
+    org.mockito.Mockito.verify(paymentRepo).save(existingPayment);
+  }
+
+  @Test
+  @DisplayName("F3: Deve atualizar registro correspondente em payment ao chamar updatePaymentMethod")
+  void testUpdatePaymentMethodUpdatesPaymentRecord() {
+    com.restaurant.api.domain.repository.OrderRepository orderRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderRepository.class);
+    com.restaurant.api.domain.repository.RestaurantTableRepository tableRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.RestaurantTableRepository.class);
+    com.restaurant.api.domain.repository.ProductRepository productRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductRepository.class);
+    com.restaurant.api.domain.repository.OrderItemRepository itemRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderItemRepository.class);
+    com.restaurant.api.domain.repository.IngredientRepository ingRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.IngredientRepository.class);
+    com.restaurant.api.domain.service.RestaurantConfigService configService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.RestaurantConfigService.class);
+    com.restaurant.api.domain.repository.PizzaSizeRepository sizeRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PizzaSizeRepository.class);
+    com.restaurant.api.domain.repository.ProductSizePriceRepository pspRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductSizePriceRepository.class);
+    com.restaurant.api.domain.repository.UserAddressRepository addrRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserAddressRepository.class);
+    com.restaurant.api.domain.repository.PaymentRepository paymentRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PaymentRepository.class);
+    com.restaurant.api.domain.service.DailyOrderSequenceService seqService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.DailyOrderSequenceService.class);
+    com.restaurant.api.domain.repository.UserRepository userRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserRepository.class);
+
+    RestaurantConfig config = new RestaurantConfig();
+    config.setDeliveryFee(new BigDecimal("2.00"));
+    org.mockito.Mockito.when(configService.getConfigEntity()).thenReturn(config);
+
+    com.restaurant.api.domain.entity.Order order = new com.restaurant.api.domain.entity.Order();
+    order.setId(10L);
+    order.setStatus(com.restaurant.api.domain.enums.StatusOrder.OPENED);
+    order.setOrderType(com.restaurant.api.domain.enums.OrderType.TAKEOUT);
+    order.setPaymentMethod(com.restaurant.api.domain.enums.PaymentMethod.CASH);
+
+    com.restaurant.api.domain.entity.Payment existingPayment = new com.restaurant.api.domain.entity.Payment();
+    existingPayment.setId(1L);
+    existingPayment.setMethod(com.restaurant.api.domain.enums.PaymentMethod.CASH);
+    existingPayment.setAmount(new BigDecimal("50.00"));
+    existingPayment.setStatus(com.restaurant.api.domain.enums.StatusPayment.APPROVED);
+
+    org.mockito.Mockito.when(orderRepo.findById(10L)).thenReturn(java.util.Optional.of(order));
+    org.mockito.Mockito.when(orderRepo.save(org.mockito.ArgumentMatchers.any(com.restaurant.api.domain.entity.Order.class))).thenAnswer(i -> i.getArgument(0));
+    org.mockito.Mockito.when(paymentRepo.findByOrderId(10L)).thenReturn(java.util.List.of(existingPayment));
+
+    com.restaurant.api.domain.service.OrderService service = new com.restaurant.api.domain.service.OrderService(
+        orderRepo, tableRepo, productRepo, itemRepo, ingRepo, configService,
+        sizeRepo, pspRepo, addrRepo, paymentRepo, seqService, userRepo
+    );
+
+    com.restaurant.api.domain.dto.OrderPaymentMethodUpdateRequest req =
+        new com.restaurant.api.domain.dto.OrderPaymentMethodUpdateRequest(com.restaurant.api.domain.enums.PaymentMethod.PIX, null);
+
+    service.updatePaymentMethod(10L, req);
+
+    assertEquals(com.restaurant.api.domain.enums.PaymentMethod.PIX, order.getPaymentMethod());
+    assertEquals(com.restaurant.api.domain.enums.PaymentMethod.PIX, existingPayment.getMethod());
+    org.mockito.Mockito.verify(paymentRepo).save(existingPayment);
+  }
+
+  @Test
+  @DisplayName("F3: Deve sincronizar order.paymentMethod ao quitar o pedido via PaymentService.registerPayment")
+  void testPaymentServiceRegisterPaymentSyncsOrderPaymentMethod() {
+    com.restaurant.api.domain.repository.PaymentRepository paymentRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PaymentRepository.class);
+    com.restaurant.api.domain.repository.OrderRepository orderRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderRepository.class);
+    com.restaurant.api.domain.repository.OrderItemRepository itemRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderItemRepository.class);
+    com.restaurant.api.domain.repository.RestaurantTableRepository tableRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.RestaurantTableRepository.class);
+    com.restaurant.api.domain.service.RestaurantConfigService configService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.RestaurantConfigService.class);
+
+    com.restaurant.api.domain.entity.Order order = new com.restaurant.api.domain.entity.Order();
+    order.setId(5L);
+    order.setStatus(com.restaurant.api.domain.enums.StatusOrder.OPENED);
+    order.setOrderType(com.restaurant.api.domain.enums.OrderType.TAKEOUT);
+    order.setPaymentMethod(null); // Sem método prévio
+
+    OrderItem item = new OrderItem();
+    item.setUnitPrice(new BigDecimal("50.00"));
+    item.setQuantity(1);
+
+    org.mockito.Mockito.when(orderRepo.findById(5L)).thenReturn(java.util.Optional.of(order));
+    org.mockito.Mockito.when(itemRepo.findByOrderId(5L)).thenReturn(java.util.List.of(item));
+    org.mockito.Mockito.when(paymentRepo.findByOrderIdAndStatus(5L, com.restaurant.api.domain.enums.StatusPayment.APPROVED))
+        .thenReturn(java.util.Collections.emptyList());
+
+    com.restaurant.api.domain.service.PaymentService paymentService = new com.restaurant.api.domain.service.PaymentService(
+        paymentRepo, orderRepo, itemRepo, tableRepo, configService
+    );
+
+    com.restaurant.api.domain.dto.OrderPaymentRequest request = new com.restaurant.api.domain.dto.OrderPaymentRequest(
+        com.restaurant.api.domain.enums.PaymentMethod.PIX,
+        new BigDecimal("50.00"),
+        "Cliente Teste"
+    );
+
+    paymentService.registerPayment(5L, request);
+
+    assertEquals(com.restaurant.api.domain.enums.PaymentMethod.PIX, order.getPaymentMethod());
+    assertEquals(com.restaurant.api.domain.enums.StatusOrder.CLOSED, order.getStatus());
+  }
+
+  @Test
+  @DisplayName("F4: Pedido cancelado (CANCELLED) deve zerar subtotal, deliveryFee, totalAmount e remainingAmount")
+  void testCancelledOrderCompulsoryZeroingInMapToResponseAndCalculateTotal() {
+    com.restaurant.api.domain.repository.OrderRepository orderRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderRepository.class);
+    com.restaurant.api.domain.repository.RestaurantTableRepository tableRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.RestaurantTableRepository.class);
+    com.restaurant.api.domain.repository.ProductRepository productRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductRepository.class);
+    com.restaurant.api.domain.repository.OrderItemRepository itemRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderItemRepository.class);
+    com.restaurant.api.domain.repository.IngredientRepository ingRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.IngredientRepository.class);
+    com.restaurant.api.domain.service.RestaurantConfigService configService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.RestaurantConfigService.class);
+    com.restaurant.api.domain.repository.PizzaSizeRepository sizeRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PizzaSizeRepository.class);
+    com.restaurant.api.domain.repository.ProductSizePriceRepository pspRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductSizePriceRepository.class);
+    com.restaurant.api.domain.repository.UserAddressRepository addrRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserAddressRepository.class);
+    com.restaurant.api.domain.repository.PaymentRepository paymentRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PaymentRepository.class);
+    com.restaurant.api.domain.service.DailyOrderSequenceService seqService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.DailyOrderSequenceService.class);
+    com.restaurant.api.domain.repository.UserRepository userRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserRepository.class);
+
+    RestaurantConfig config = new RestaurantConfig();
+    config.setDeliveryFee(new BigDecimal("5.00"));
+    org.mockito.Mockito.when(configService.getConfigEntity()).thenReturn(config);
+
+    com.restaurant.api.domain.entity.Order order = new com.restaurant.api.domain.entity.Order();
+    order.setId(20L);
+    order.setStatus(com.restaurant.api.domain.enums.StatusOrder.CANCELLED);
+    order.setOrderType(com.restaurant.api.domain.enums.OrderType.DELIVERY);
+
+    Product product = new Product();
+    product.setPrice(new BigDecimal("50.00"));
+    OrderItem item = new OrderItem();
+    item.setProduct(product);
+    item.setQuantity(2);
+    item.setUnitPrice(new BigDecimal("50.00"));
+    org.mockito.Mockito.when(itemRepo.findByOrderId(20L)).thenReturn(java.util.List.of(item));
+
+    com.restaurant.api.domain.service.OrderService service = new com.restaurant.api.domain.service.OrderService(
+        orderRepo, tableRepo, productRepo, itemRepo, ingRepo, configService,
+        sizeRepo, pspRepo, addrRepo, paymentRepo, seqService, userRepo
+    );
+
+    BigDecimal total = service.calculateOrderTotal(order);
+    assertEquals(BigDecimal.ZERO, total);
+
+    com.restaurant.api.domain.dto.OrderResponse response = service.mapToOrderResponse(order);
+    assertEquals(BigDecimal.ZERO, response.subtotal());
+    assertEquals(BigDecimal.ZERO, response.deliveryFee());
+    assertEquals(BigDecimal.ZERO, response.totalAmount());
+    assertEquals(BigDecimal.ZERO, response.remainingAmount());
+    assertFalse(response.isFullyPaid());
+  }
+
+  @Test
+  @DisplayName("F4: Deve cancelar pagamentos aprovados existentes ao cancelar o pedido")
+  void testCancelOrderCancelsExistingApprovedPayments() {
+    com.restaurant.api.domain.repository.OrderRepository orderRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderRepository.class);
+    com.restaurant.api.domain.repository.RestaurantTableRepository tableRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.RestaurantTableRepository.class);
+    com.restaurant.api.domain.repository.ProductRepository productRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductRepository.class);
+    com.restaurant.api.domain.repository.OrderItemRepository itemRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.OrderItemRepository.class);
+    com.restaurant.api.domain.repository.IngredientRepository ingRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.IngredientRepository.class);
+    com.restaurant.api.domain.service.RestaurantConfigService configService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.RestaurantConfigService.class);
+    com.restaurant.api.domain.repository.PizzaSizeRepository sizeRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PizzaSizeRepository.class);
+    com.restaurant.api.domain.repository.ProductSizePriceRepository pspRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.ProductSizePriceRepository.class);
+    com.restaurant.api.domain.repository.UserAddressRepository addrRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserAddressRepository.class);
+    com.restaurant.api.domain.repository.PaymentRepository paymentRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.PaymentRepository.class);
+    com.restaurant.api.domain.service.DailyOrderSequenceService seqService = org.mockito.Mockito.mock(com.restaurant.api.domain.service.DailyOrderSequenceService.class);
+    com.restaurant.api.domain.repository.UserRepository userRepo = org.mockito.Mockito.mock(com.restaurant.api.domain.repository.UserRepository.class);
+
+    RestaurantConfig config = new RestaurantConfig();
+    config.setDeliveryFee(new BigDecimal("2.00"));
+    org.mockito.Mockito.when(configService.getConfigEntity()).thenReturn(config);
+
+    com.restaurant.api.domain.entity.Order order = new com.restaurant.api.domain.entity.Order();
+    order.setId(30L);
+    order.setStatus(com.restaurant.api.domain.enums.StatusOrder.OPENED);
+    order.setOrderType(com.restaurant.api.domain.enums.OrderType.TAKEOUT);
+
+    com.restaurant.api.domain.entity.Payment approvedPayment = new com.restaurant.api.domain.entity.Payment();
+    approvedPayment.setId(100L);
+    approvedPayment.setStatus(com.restaurant.api.domain.enums.StatusPayment.APPROVED);
+    approvedPayment.setAmount(new BigDecimal("60.00"));
+
+    org.mockito.Mockito.when(orderRepo.findById(30L)).thenReturn(java.util.Optional.of(order));
+    org.mockito.Mockito.when(orderRepo.save(org.mockito.ArgumentMatchers.any(com.restaurant.api.domain.entity.Order.class))).thenAnswer(i -> i.getArgument(0));
+    org.mockito.Mockito.when(paymentRepo.findByOrderId(30L)).thenReturn(java.util.List.of(approvedPayment));
+
+    com.restaurant.api.domain.service.OrderService service = new com.restaurant.api.domain.service.OrderService(
+        orderRepo, tableRepo, productRepo, itemRepo, ingRepo, configService,
+        sizeRepo, pspRepo, addrRepo, paymentRepo, seqService, userRepo
+    );
+
+    com.restaurant.api.domain.dto.OrderResponse response = service.cancelOrder(30L, "Cliente solicitou cancelamento");
+
+    assertEquals(com.restaurant.api.domain.enums.StatusOrder.CANCELLED, response.status());
+    assertEquals(com.restaurant.api.domain.enums.StatusPayment.CANCELLED, approvedPayment.getStatus());
+    org.mockito.Mockito.verify(paymentRepo).saveAll(java.util.List.of(approvedPayment));
+    assertEquals(BigDecimal.ZERO, response.totalAmount());
+  }
 }

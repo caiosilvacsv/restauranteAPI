@@ -42,7 +42,11 @@ public class OrderController {
     if (clientOrderIdHeader != null && !clientOrderIdHeader.isBlank() && (order.clientOrderId() == null || order.clientOrderId().isBlank())) {
       order = order.withClientOrderId(clientOrderIdHeader.trim());
     }
-    return ResponseEntity.status(HttpStatus.CREATED).body(service.createOrder(order));
+    boolean alreadyExisted = order.clientOrderId() != null 
+        && !order.clientOrderId().isBlank() 
+        && service.existsByClientOrderId(order.clientOrderId().trim());
+    OrderResponse response = service.createOrder(order);
+    return ResponseEntity.status(alreadyExisted ? HttpStatus.OK : HttpStatus.CREATED).body(response);
   }
 
   @GetMapping

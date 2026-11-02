@@ -1,0 +1,4 @@
+apilabella.duckdns.org {
+    # Redireciona todo o tráfego HTTP/HTTPS e WebSockets para o container da API Spring Boot
+    reverse_proxy api:8080
+}

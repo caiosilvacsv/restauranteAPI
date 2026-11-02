@@ -31,9 +31,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class OrderService {
@@ -50,6 +55,7 @@ public class OrderService {
   private final PaymentRepository paymentRepository;
   private final DailyOrderSequenceService dailyOrderSequenceService;
   private final UserRepository userRepository;
+  private final TransactionTemplate transactionTemplate;
 
   public OrderService(
       OrderRepository orderRepository,
@@ -65,6 +71,27 @@ public class OrderService {
       DailyOrderSequenceService dailyOrderSequenceService,
       UserRepository userRepository
   ) {
+    this(orderRepository, tableRepository, productRepository, orderItemRepository,
+        ingredientRepository, configService, pizzaSizeRepository, productSizePriceRepository,
+        userAddressRepository, paymentRepository, dailyOrderSequenceService, userRepository, null);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public OrderService(
+      OrderRepository orderRepository,
+      RestaurantTableRepository tableRepository,
+      ProductRepository productRepository,
+      OrderItemRepository orderItemRepository,
+      IngredientRepository ingredientRepository,
+      RestaurantConfigService configService,
+      com.restaurant.api.domain.repository.PizzaSizeRepository pizzaSizeRepository,
+      com.restaurant.api.domain.repository.ProductSizePriceRepository productSizePriceRepository,
+      com.restaurant.api.domain.repository.UserAddressRepository userAddressRepository,
+      PaymentRepository paymentRepository,
+      DailyOrderSequenceService dailyOrderSequenceService,
+      UserRepository userRepository,
+      PlatformTransactionManager transactionManager
+  ) {
     this.orderRepository = orderRepository;
     this.tableRepository = tableRepository;
     this.productRepository = productRepository;
@@ -77,18 +104,56 @@ public class OrderService {
     this.paymentRepository = paymentRepository;
     this.dailyOrderSequenceService = dailyOrderSequenceService;
     this.userRepository = userRepository;
+    this.transactionTemplate = transactionManager != null
+        ? new TransactionTemplate(transactionManager)
+        : null;
   }
 
-  @Transactional
+  public boolean existsByClientOrderId(String clientOrderId) {
+    if (clientOrderId == null || clientOrderId.isBlank()) {
+      return false;
+    }
+    return orderRepository.existsByClientOrderId(clientOrderId.trim());
+  }
+
   public OrderResponse createOrder(OrderRequest request) {
-    // 0. Idempotência: se já existir pedido com o mesmo clientOrderId, retorna o pedido existente sem duplicar
+    // 0. Idempotência rápida: se já existir pedido com o mesmo clientOrderId, retorna o pedido existente sem duplicar
     if (request.clientOrderId() != null && !request.clientOrderId().isBlank()) {
       java.util.Optional<Order> existing = orderRepository.findByClientOrderId(request.clientOrderId().trim());
       if (existing.isPresent()) {
-        return findById(existing.get().getId());
+        return mapToOrderResponse(existing.get());
       }
     }
 
+    try {
+      if (transactionTemplate != null) {
+        return transactionTemplate.execute(status -> executeCreateOrder(request));
+      } else {
+        return executeCreateOrder(request);
+      }
+    } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+      if (request.clientOrderId() != null && !request.clientOrderId().isBlank()) {
+        String cleanClientOrderId = request.clientOrderId().trim();
+        // Corrida concorrente detectada: outra requisição gravou este clientOrderId simultaneamente.
+        // Aguarda brevemente para garantir que o commit da thread concorrente finalizou e retorna o pedido existente.
+        for (int attempt = 0; attempt < 5; attempt++) {
+          java.util.Optional<Order> existing = orderRepository.findByClientOrderId(cleanClientOrderId);
+          if (existing.isPresent()) {
+            return mapToOrderResponse(existing.get());
+          }
+          try {
+            Thread.sleep(50);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            break;
+          }
+        }
+      }
+      throw ex;
+    }
+  }
+
+  private OrderResponse executeCreateOrder(OrderRequest request) {
     RestaurantConfig config = configService.getConfigEntity();
 
     // 1. Instancia o pedido base
@@ -213,7 +278,7 @@ public class OrderService {
       }
     }
 
-    Order savedOrder = orderRepository.save(order);
+    Order savedOrder = orderRepository.saveAndFlush(order);
 
     // 5. Adiciona itens ao pedido
     List<OrderItemResponse> itemResponses = new ArrayList<>();
@@ -296,7 +361,8 @@ public class OrderService {
       spec = spec.and((root, query, cb) -> cb.equal(root.get("table").get("id"), tableId));
     }
 
-    return orderRepository.findAll(spec, pageable).map(this::mapToOrderResponse);
+    Page<Order> ordersPage = orderRepository.findAll(spec, pageable);
+    return toOrderResponsePage(ordersPage);
   }
 
   private Instant[] calculateShiftInterval(LocalDate businessDate, RestaurantConfig config) {
@@ -324,8 +390,44 @@ public class OrderService {
       throw new BusinessRulesException("Acesso não autorizado", "É necessário estar autenticado para consultar seus pedidos.");
     }
 
-    return orderRepository.findByUserIdOrderByOpenedAtDesc(user.getId(), pageable)
-        .map(this::mapToOrderResponse);
+    Page<Order> ordersPage = orderRepository.findByUserIdOrderByOpenedAtDesc(user.getId(), pageable);
+    return toOrderResponsePage(ordersPage);
+  }
+
+  public Page<OrderResponse> toOrderResponsePage(Page<Order> ordersPage) {
+    if (ordersPage == null || ordersPage.isEmpty()) {
+      return ordersPage != null ? ordersPage.map(this::mapToOrderResponse) : Page.empty();
+    }
+
+    List<Long> orderIds = ordersPage.getContent().stream()
+        .map(Order::getId)
+        .filter(Objects::nonNull)
+        .toList();
+
+    List<OrderItem> allItems = orderIds.isEmpty()
+        ? Collections.emptyList()
+        : orderItemRepository.findByOrderIdInWithDetails(orderIds);
+
+    Map<Long, List<OrderItem>> itemsByOrderId = allItems.stream()
+        .filter(item -> item.getOrder() != null && item.getOrder().getId() != null)
+        .collect(Collectors.groupingBy(item -> item.getOrder().getId()));
+
+    List<Payment> allPayments = orderIds.isEmpty()
+        ? Collections.emptyList()
+        : paymentRepository.findByOrderIdInAndStatus(orderIds, StatusPayment.APPROVED);
+
+    Map<Long, List<Payment>> paymentsByOrderId = allPayments.stream()
+        .filter(payment -> payment.getOrder() != null && payment.getOrder().getId() != null)
+        .collect(Collectors.groupingBy(payment -> payment.getOrder().getId()));
+
+    RestaurantConfig config = configService.getConfigEntity();
+
+    return ordersPage.map(order -> mapToOrderResponse(
+        order,
+        itemsByOrderId.getOrDefault(order.getId(), Collections.emptyList()),
+        paymentsByOrderId.getOrDefault(order.getId(), Collections.emptyList()),
+        config
+    ));
   }
 
   public OrderResponse findById(Long id) {
@@ -361,37 +463,66 @@ public class OrderService {
   }
 
   public OrderResponse mapToOrderResponse(Order order) {
-    List<OrderItemResponse> items = itemsList(order.getId());
-    BigDecimal itemsTotal = items.stream()
-        .filter(it -> it.status() != StatusOrderItem.CANCELLED)
-        .map(OrderItemResponse::total)
-        .filter(Objects::nonNull)
-        .reduce(BigDecimal.ZERO, BigDecimal::add);
-
     RestaurantConfig config = configService.getConfigEntity();
-    BigDecimal deliveryFee = BigDecimal.ZERO;
-    if (order.getOrderType() == OrderType.DELIVERY) {
-      deliveryFee = config.getDeliveryFee() != null ? config.getDeliveryFee() : BigDecimal.valueOf(2.00);
-    }
-    BigDecimal totalAmount = itemsTotal.add(deliveryFee);
-
+    List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
     List<Payment> approvedPayments = paymentRepository.findByOrderIdAndStatus(order.getId(), StatusPayment.APPROVED);
-    BigDecimal totalPaid = approvedPayments.stream()
-        .map(Payment::getAmount)
-        .filter(Objects::nonNull)
-        .reduce(BigDecimal.ZERO, BigDecimal::add);
+    return mapToOrderResponse(order, items, approvedPayments, config);
+  }
 
-    BigDecimal remainingAmount = totalAmount.subtract(totalPaid);
-    if (remainingAmount.compareTo(BigDecimal.ZERO) < 0) {
+  public OrderResponse mapToOrderResponse(
+      Order order,
+      List<OrderItem> items,
+      List<Payment> approvedPayments,
+      RestaurantConfig config
+  ) {
+    List<OrderItemResponse> itemResponses = items != null
+        ? items.stream().map(OrderItemResponse::fromEntity).toList()
+        : Collections.emptyList();
+
+    BigDecimal itemsTotal;
+    BigDecimal deliveryFee;
+    BigDecimal totalAmount;
+    BigDecimal totalPaid;
+    BigDecimal remainingAmount;
+    boolean isFullyPaid;
+
+    if (order.getStatus() == com.restaurant.api.domain.enums.StatusOrder.CANCELLED) {
+      itemsTotal = BigDecimal.ZERO;
+      deliveryFee = BigDecimal.ZERO;
+      totalAmount = BigDecimal.ZERO;
+      totalPaid = BigDecimal.ZERO;
       remainingAmount = BigDecimal.ZERO;
-    }
+      isFullyPaid = false;
+    } else {
+      itemsTotal = itemResponses.stream()
+          .filter(it -> it.status() != StatusOrderItem.CANCELLED)
+          .map(OrderItemResponse::total)
+          .filter(Objects::nonNull)
+          .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-    boolean isFullyPaid = order.getStatus() == com.restaurant.api.domain.enums.StatusOrder.CLOSED 
-        || (totalAmount.compareTo(BigDecimal.ZERO) > 0 && remainingAmount.compareTo(BigDecimal.ZERO) <= 0);
+      deliveryFee = BigDecimal.ZERO;
+      if (order.getOrderType() == OrderType.DELIVERY) {
+        deliveryFee = config != null && config.getDeliveryFee() != null ? config.getDeliveryFee() : BigDecimal.valueOf(2.00);
+      }
+      totalAmount = itemsTotal.add(deliveryFee);
+
+      totalPaid = (approvedPayments != null ? approvedPayments : Collections.<Payment>emptyList()).stream()
+          .map(Payment::getAmount)
+          .filter(Objects::nonNull)
+          .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+      remainingAmount = totalAmount.subtract(totalPaid);
+      if (remainingAmount.compareTo(BigDecimal.ZERO) < 0) {
+        remainingAmount = BigDecimal.ZERO;
+      }
+
+      isFullyPaid = order.getStatus() == com.restaurant.api.domain.enums.StatusOrder.CLOSED 
+          || (totalAmount.compareTo(BigDecimal.ZERO) > 0 && remainingAmount.compareTo(BigDecimal.ZERO) <= 0);
+    }
 
     return OrderResponse.fromEntity(
         order,
-        items,
+        itemResponses,
         itemsTotal,
         deliveryFee,
         totalAmount,
@@ -402,17 +533,24 @@ public class OrderService {
   }
 
   public BigDecimal calculateOrderTotal(Order order) {
-    List<OrderItemResponse> items = itemsList(order.getId());
+    if (order.getStatus() == com.restaurant.api.domain.enums.StatusOrder.CANCELLED) {
+      return BigDecimal.ZERO;
+    }
+
+    List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
     BigDecimal itemsTotal = items.stream()
-        .filter(it -> it.status() != StatusOrderItem.CANCELLED)
-        .map(OrderItemResponse::total)
-        .filter(Objects::nonNull)
+        .filter(it -> it.getStatus() != StatusOrderItem.CANCELLED)
+        .map(it -> {
+          BigDecimal unit = it.getUnitPrice() != null ? it.getUnitPrice() : BigDecimal.ZERO;
+          int qty = it.getQuantity() != null ? it.getQuantity() : 0;
+          return unit.multiply(BigDecimal.valueOf(qty));
+        })
         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     RestaurantConfig config = configService.getConfigEntity();
     BigDecimal deliveryFee = BigDecimal.ZERO;
     if (order.getOrderType() == OrderType.DELIVERY) {
-      deliveryFee = config.getDeliveryFee() != null ? config.getDeliveryFee() : BigDecimal.valueOf(2.00);
+      deliveryFee = config != null && config.getDeliveryFee() != null ? config.getDeliveryFee() : BigDecimal.valueOf(2.00);
     }
     return itemsTotal.add(deliveryFee);
   }
@@ -485,6 +623,60 @@ public class OrderService {
       order.setClosedAt(java.time.Instant.now());
     }
 
+    if (newStatus == com.restaurant.api.domain.enums.StatusOrder.CLOSED) {
+      // Sincronização atômica de pagamentos no fechamento
+      List<Payment> existingPayments = paymentRepository.findByOrderId(order.getId());
+      List<Payment> approvedPayments = existingPayments != null
+          ? existingPayments.stream().filter(p -> p.getStatus() == StatusPayment.APPROVED).toList()
+          : java.util.Collections.emptyList();
+
+      if (approvedPayments.isEmpty()) {
+        BigDecimal orderTotal = calculateOrderTotal(order);
+        if (orderTotal.compareTo(BigDecimal.ZERO) > 0) {
+          com.restaurant.api.domain.enums.PaymentMethod method = order.getPaymentMethod() != null
+              ? order.getPaymentMethod()
+              : com.restaurant.api.domain.enums.PaymentMethod.CASH;
+          if (order.getPaymentMethod() == null) {
+            order.setPaymentMethod(method);
+          }
+          Payment payment = new Payment();
+          payment.setOrder(order);
+          payment.setAmount(orderTotal);
+          payment.setMethod(method);
+          payment.setStatus(StatusPayment.APPROVED);
+          String payer = order.getCustomerName() != null && !order.getCustomerName().isBlank()
+              ? order.getCustomerName()
+              : (order.getUser() != null ? order.getUser().getName() : "Cliente");
+          payment.setPayerName(payer);
+          payment.setPaymentDate(java.time.Instant.now());
+          paymentRepository.save(payment);
+        }
+      } else if (order.getPaymentMethod() != null && approvedPayments.size() == 1) {
+        Payment singlePay = approvedPayments.get(0);
+        if (singlePay.getMethod() != order.getPaymentMethod()) {
+          singlePay.setMethod(order.getPaymentMethod());
+          paymentRepository.save(singlePay);
+        }
+      } else if (order.getPaymentMethod() == null && !approvedPayments.isEmpty()) {
+        order.setPaymentMethod(approvedPayments.get(0).getMethod());
+      }
+    } else if (newStatus == com.restaurant.api.domain.enums.StatusOrder.CANCELLED) {
+      // Cancelamento defensivo de pagamentos ao transicionar para CANCELLED
+      List<Payment> existingPayments = paymentRepository.findByOrderId(order.getId());
+      if (existingPayments != null && !existingPayments.isEmpty()) {
+        boolean changed = false;
+        for (Payment p : existingPayments) {
+          if (p.getStatus() != StatusPayment.CANCELLED) {
+            p.setStatus(StatusPayment.CANCELLED);
+            changed = true;
+          }
+        }
+        if (changed) {
+          paymentRepository.saveAll(existingPayments);
+        }
+      }
+    }
+
     Order updated = orderRepository.save(order);
     return mapToOrderResponse(updated);
   }
@@ -531,6 +723,21 @@ public class OrderService {
       tableRepository.save(order.getTable());
     }
 
+    // Cancelar eventuais pagamentos existentes
+    List<Payment> payments = paymentRepository.findByOrderId(orderId);
+    if (payments != null && !payments.isEmpty()) {
+      boolean changed = false;
+      for (Payment p : payments) {
+        if (p.getStatus() != StatusPayment.CANCELLED) {
+          p.setStatus(StatusPayment.CANCELLED);
+          changed = true;
+        }
+      }
+      if (changed) {
+        paymentRepository.saveAll(payments);
+      }
+    }
+
     Order saved = orderRepository.save(order);
     return mapToOrderResponse(saved);
   }
@@ -555,6 +762,30 @@ public class OrderService {
 
     order.setPaymentMethod(request.paymentMethod());
     order.setCashChangeFor(request.paymentMethod() == com.restaurant.api.domain.enums.PaymentMethod.CASH ? request.cashChangeFor() : null);
+
+    // Sincroniza registros correspondentes na tabela payment
+    List<Payment> payments = paymentRepository.findByOrderId(orderId);
+    if (payments != null && !payments.isEmpty()) {
+      if (payments.size() == 1) {
+        Payment p = payments.get(0);
+        p.setMethod(request.paymentMethod());
+        paymentRepository.save(p);
+      } else {
+        List<Payment> approved = payments.stream()
+            .filter(p -> p.getStatus() == StatusPayment.APPROVED)
+            .toList();
+        if (approved.size() == 1) {
+          Payment p = approved.get(0);
+          p.setMethod(request.paymentMethod());
+          paymentRepository.save(p);
+        } else if (payments.stream().allMatch(p -> p.getMethod() == order.getPaymentMethod())) {
+          for (Payment p : payments) {
+            p.setMethod(request.paymentMethod());
+          }
+          paymentRepository.saveAll(payments);
+        }
+      }
+    }
 
     Order saved = orderRepository.save(order);
     return mapToOrderResponse(saved);

@@ -12,6 +12,7 @@ import java.util.List;
 public record OrderResponse(
     Long id,
     String orderCode,
+    String clientOrderId,
     String customerName,
     String customerPhone,
     Long tableId,
@@ -35,6 +36,36 @@ public record OrderResponse(
     Instant estimatedDeliveryAt,
     List<OrderItemResponse> items
 ) {
+  // Construtor de compatibilidade para chamadas legadas de 24 argumentos sem clientOrderId
+  public OrderResponse(
+      Long id,
+      String orderCode,
+      String customerName,
+      String customerPhone,
+      Long tableId,
+      Integer numberTable,
+      OrderType orderType,
+      DeliveryAddressDto deliveryAddress,
+      PaymentMethod paymentMethod,
+      BigDecimal cashChangeFor,
+      BigDecimal subtotal,
+      BigDecimal deliveryFee,
+      BigDecimal totalAmount,
+      BigDecimal totalPaid,
+      BigDecimal remainingAmount,
+      Boolean isFullyPaid,
+      Instant openedAt,
+      Instant closedAt,
+      StatusOrder status,
+      String note,
+      String cancelReason,
+      Integer estimatedMinutes,
+      Instant estimatedDeliveryAt,
+      List<OrderItemResponse> items
+  ) {
+    this(id, orderCode, null, customerName, customerPhone, tableId, numberTable, orderType, deliveryAddress, paymentMethod, cashChangeFor, subtotal, deliveryFee, totalAmount, totalPaid, remainingAmount, isFullyPaid, openedAt, closedAt, status, note, cancelReason, estimatedMinutes, estimatedDeliveryAt, items);
+  }
+
   public static OrderResponse fromEntity(Order order) {
     return fromEntity(order, List.of(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, false);
   }
@@ -76,9 +107,26 @@ public record OrderResponse(
         ? order.getCustomerPhone()
         : (order.getUser() != null ? order.getUser().getNumber() : null);
 
+    BigDecimal effectiveSubtotal = subtotal;
+    BigDecimal effectiveDeliveryFee = deliveryFee;
+    BigDecimal effectiveTotalAmount = totalAmount;
+    BigDecimal effectiveTotalPaid = totalPaid != null ? totalPaid : BigDecimal.ZERO;
+    BigDecimal effectiveRemaining = remainingAmount != null ? remainingAmount : BigDecimal.ZERO;
+    Boolean effectiveIsPaid = isFullyPaid != null ? isFullyPaid : false;
+
+    if (order.getStatus() == StatusOrder.CANCELLED) {
+      effectiveSubtotal = BigDecimal.ZERO;
+      effectiveDeliveryFee = BigDecimal.ZERO;
+      effectiveTotalAmount = BigDecimal.ZERO;
+      effectiveTotalPaid = BigDecimal.ZERO;
+      effectiveRemaining = BigDecimal.ZERO;
+      effectiveIsPaid = false;
+    }
+
     return new OrderResponse(
         order.getId(),
         orderCode,
+        order.getClientOrderId(),
         customerName,
         customerPhone,
         tableId,
@@ -87,12 +135,12 @@ public record OrderResponse(
         DeliveryAddressDto.fromEntity(order.getDeliveryAddress()),
         order.getPaymentMethod(),
         order.getCashChangeFor(),
-        subtotal,
-        deliveryFee,
-        totalAmount,
-        totalPaid != null ? totalPaid : BigDecimal.ZERO,
-        remainingAmount != null ? remainingAmount : BigDecimal.ZERO,
-        isFullyPaid != null ? isFullyPaid : false,
+        effectiveSubtotal,
+        effectiveDeliveryFee,
+        effectiveTotalAmount,
+        effectiveTotalPaid,
+        effectiveRemaining,
+        effectiveIsPaid,
         order.getOpenedAt(),
         order.getClosedAt(),
         order.getStatus(),
